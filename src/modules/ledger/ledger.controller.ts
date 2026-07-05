@@ -1,4 +1,38 @@
-import { Controller } from '@nestjs/common';
-
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { LedgerService } from './ledger.service';
+import { AuthGuard } from 'src/common/guards/auth.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { TransferRequestDto } from './dto/transfer-request.dto';
 @Controller('ledger')
-export class LedgerController {}
+export class LedgerController {
+  constructor(private readonly ledgerService: LedgerService) {}
+
+  @Post()
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async initiateTransfer(
+    @CurrentUser() user: { id: string },
+    @Body() body: TransferRequestDto,
+  ) {
+    const amountInCents = BigInt(body.amount);
+    const result = await this.ledgerService.executeTransfer(
+      user.id,
+      body.target_account_id,
+      amountInCents,
+      body.description,
+    );
+
+    return {
+      success: true,
+      message: 'Asset transfer processed',
+      ...result,
+    };
+  }
+}
