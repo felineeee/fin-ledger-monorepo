@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   BadRequestException,
   InternalServerErrorException,
   NotFoundException,
@@ -12,6 +13,7 @@ import { LedgerRepository } from './ledger.repository';
 import * as crypto from 'crypto';
 @Injectable()
 export class LedgerService {
+  private readonly logger = new Logger(LedgerService.name);
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly ledgerRepository: LedgerRepository,
@@ -25,6 +27,13 @@ export class LedgerService {
   ): Promise<{ transaction_id: string }> {
     const client: PoolClient = await this.pool.connect();
     const transactionId = crypto.randomUUID();
+
+    this.logger.log({
+      message: 'Initiating atomic ledger asset transfer transaction block',
+      senderUserId,
+      targetAccountId: targetAccountId,
+      amountCents: amount.toString(),
+    });
 
     try {
       await client.query('BEGIN');
