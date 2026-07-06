@@ -4,9 +4,11 @@ import { AppService } from './app.service';
 import { LedgerModule } from './modules/ledger/ledger.module';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env.config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     LedgerModule,
     [
       ConfigModule.forRoot({
