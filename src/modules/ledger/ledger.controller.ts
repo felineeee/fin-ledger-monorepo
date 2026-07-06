@@ -28,6 +28,7 @@ export class LedgerController {
     const result = await this.ledgerService.executeTransfer(
       user.id,
       body.target_account_id,
+      body.source_account_id,
       amountInCents,
       body.description,
     );
@@ -37,5 +38,18 @@ export class LedgerController {
       message: 'Asset transfer processed',
       ...result,
     };
+  }
+
+  @Post('accounts')
+  @UseGuards(AuthGuard)
+  async openNewWallet(
+    @CurrentUser() user: { id: string },
+    @Body() body: { type: string; currency?: string },
+  ) {
+    return await this.ledgerService.createAccount(
+      user.id,
+      body.type,
+      body.currency || 'USD',
+    );
   }
 }

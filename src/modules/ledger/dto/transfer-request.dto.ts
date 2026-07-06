@@ -8,6 +8,10 @@ import {
 } from 'class-validator';
 
 export class TransferRequestDto {
+  @IsUUID()
+  @IsNotEmpty()
+  source_account_id!: string;
+
   @IsNotEmpty()
   @IsUUID('4', { message: 'target_account_id must be a valid UUID v4' })
   target_account_id!: string;

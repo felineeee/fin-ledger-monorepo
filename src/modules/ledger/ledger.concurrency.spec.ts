@@ -54,6 +54,7 @@ describe('Ledger Engine Adversarial Concurrency Test', () => {
         ledgerService.executeTransfer(
           aliceUserId,
           bobAccountId,
+          aliceAccountId,
           transferAmount,
           `Adversarial Parallel Stress Thread Block #${i}`,
         ),

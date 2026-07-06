@@ -22,6 +22,7 @@ export class LedgerService {
   async executeTransfer(
     senderUserId: string,
     targetAccountId: string,
+    sourceAccountId: string,
     amount: bigint,
     description?: string,
   ): Promise<{ transaction_id: string }> {
@@ -37,8 +38,13 @@ export class LedgerService {
 
     try {
       await client.query('BEGIN');
-      const senderAccountQuery = `SELECT id, balance FROM account_snapshots WHERE user_id = $1 LIMIT 1;`;
+
+      const senderAccountQuery = `
+        SELECT id, balance FROM account_snapshots 
+        WHERE id = $1 AND user_id = $2;
+      `;
       const senderAccountRes = await client.query(senderAccountQuery, [
+        sourceAccountId,
         senderUserId,
       ]);
 
@@ -53,10 +59,10 @@ export class LedgerService {
         );
       }
 
-      const lockOrderIds = [senderAccountId, targetAccountId].sort();
+      const lockOrderIds = [sourceAccountId, targetAccountId].sort();
       for (const accountIdToLock of lockOrderIds) {
         await client.query(
-          `SELECT balance FROM account_snaphots WHERE id = $1 FOR UPDATE;`,
+          `SELECT balance FROM account_snapshots WHERE id = $1 FOR UPDATE;`,
           [accountIdToLock],
         );
       }
@@ -85,7 +91,7 @@ export class LedgerService {
       const targetCurrentBalance = BigInt(targetCheckRes.rows[0].balance);
 
       const deductQuery = `UPDATE account_snapshots SET balance = balance - $1, updated_at = NOW() WHERE id = $2;`;
-      await client.query(deductQuery, [amount.toString(), senderAccountId]);
+      await client.query(deductQuery, [amount.toString(), sourceAccountId]);
 
       const creditQuery = `UPDATE account_snapshots SET balance = balance + $1, updated_at = NOW() WHERE id = $2;`;
       await client.query(creditQuery, [amount.toString(), targetAccountId]);
@@ -137,5 +143,18 @@ export class LedgerService {
     } finally {
       client.release();
     }
+  }
+  async createAccount(
+    userId: string,
+    type: string = 'primary',
+    currency: string = 'USD',
+  ): Promise<{ account_id: string }> {
+    const query = `
+      INSERT INTO account_snapshots (user_id, balance, type, currency)
+      VALUES ($1, 0, $2, $3)
+      RETURNING id;
+    `;
+    const res = await this.pool.query(query, [userId, type, currency]);
+    return { account_id: res.rows[0].id };
   }
 }
