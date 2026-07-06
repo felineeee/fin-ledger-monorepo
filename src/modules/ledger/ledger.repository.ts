@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
-import { PG_POOL } from 'src/common/database/database.module';
+import { PG_POOL } from '../../common/database/database.module';
 import * as crypto from 'crypto';
 
 export interface LedgerEntry {

@@ -13,12 +13,31 @@ describe('Ledger Engine Adversarial Concurrency Test', () => {
   let bobAccountId: string;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    // const moduleFixture: TestingModule = await Test.createTestingModule({
+    //   imports: [AppModule],
+    // }).compile();
 
-    ledgerService = moduleFixture.get<LedgerService>(LedgerService);
-    pool = moduleFixture.get<Pool>(PG_POOL);
+    // ledgerService = moduleFixture.get<LedgerService>(LedgerService);
+    // pool = moduleFixture.get<Pool>(PG_POOL);
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .useMocker((token) => {
+        if (token === 'REDIS_CLIENT') {
+          return {
+            connect: jest.fn().mockResolvedValue(null),
+            disconnect: jest.fn().mockResolvedValue(null),
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue(null),
+            del: jest.fn().mockResolvedValue(null),
+          };
+        }
+      })
+      .compile();
+
+    ledgerService = moduleRef.get<LedgerService>(LedgerService);
+    pool = moduleRef.get<Pool>(PG_POOL);
 
     aliceUserId = crypto.randomUUID();
     const bobUserId = crypto.randomUUID();
@@ -94,6 +113,12 @@ describe('Ledger Engine Adversarial Concurrency Test', () => {
       expect(parseInt(ledgerCount.rows[0].count, 10)).toBe(10);
     } finally {
       client.release();
+    }
+  });
+
+  afterAll(async () => {
+    if (pool) {
+      await pool.end();
     }
   });
 });

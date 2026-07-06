@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 import { IsEnum, IsNumber, IsString, validateSync } from 'class-validator';
 
 enum Environment {
@@ -12,7 +12,8 @@ class EnvironmentVariables {
   APP_ENV: Environment = Environment.Development;
 
   @IsNumber()
-  HTTP_PORT = 8080;
+  @Type(() => Number)
+  HTTP_PORT: number = 8080;
 
   @IsString()
   DATABASE_URL!: string;
