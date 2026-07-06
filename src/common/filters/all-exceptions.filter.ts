@@ -6,10 +6,8 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from '@nestjs/common';
+import { Response } from 'express';
 import * as crypto from 'crypto';
-import { stat } from 'fs';
-import { timestamp } from 'rxjs';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {

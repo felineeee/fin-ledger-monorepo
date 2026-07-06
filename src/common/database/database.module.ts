@@ -1,4 +1,5 @@
 import {
+  Inject,
   Global,
   Module,
   OnApplicationShutdown,
@@ -32,7 +33,7 @@ export const PG_POOL = 'PG_POOL';
   exports: [PG_POOL],
 })
 export class DatabaseModule implements OnModuleInit, OnApplicationShutdown {
-  constructor(@inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async onModuleInit() {
     const client = await this.pool.connect();

@@ -1,4 +1,5 @@
 import {
+  Inject,
   BadRequestException,
   CallHandler,
   ExecutionContext,
@@ -6,7 +7,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { REDIS_CLIENT } from '../redis/redis.module';
-import { RedisClientType } from '@redis/client';
+import type { RedisClientType } from '@redis/client';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -17,7 +18,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
   async intercept(
     context: ExecutionContext,
     next: CallHandler<any>,
-  ): Observable<any> | Promise<Observable<any>> {
+  ): Promise<Observable<any>> {
     const httpContext = context.switchToHttp();
     const request = httpContext.getRequest();
     const response = httpContext.getResponse();

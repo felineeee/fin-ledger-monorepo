@@ -10,12 +10,10 @@ import { ScheduleModule } from '@nestjs/schedule';
   imports: [
     ScheduleModule.forRoot(),
     LedgerModule,
-    [
-      ConfigModule.forRoot({
-        isGlobal: true,
-        validate: validateEnv,
-      }),
-    ],
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

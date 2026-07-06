@@ -16,7 +16,7 @@ interface DecodedToken extends jwt.JwtPayload {
 export class AuthGuard implements CanActivate {
   private readonly jwtSecret: string;
   constructor(private readonly configService: ConfigService) {
-    this.jwtSecret = this.configService.get<string>('JWT_SECRET');
+    this.jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

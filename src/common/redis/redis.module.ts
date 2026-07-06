@@ -1,11 +1,13 @@
 import {
+  Inject,
   Global,
   Module,
   OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService, ConfigModule } from '@nestjs/config';
-import { createClient, RedisClient, RedisClientType } from 'redis';
+import { createClient, RedisClient } from 'redis';
+import type { RedisClientType } from 'redis';
 
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
