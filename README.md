@@ -1,3 +1,67 @@
+# Background
+
+This project is a exploratory of my curiosity on how companies handle transaction safely. Something beyond CRUD. -changethis
+
+I chose Fintech as focal point to this study, due to its operational nature. Fintech operates at -something and its rigid financial regulation. Unlike other -something when failure happen, result in minor inconvinience. A failure in fintech can lead to severe financial loss, regulatory penalties, and systemic instability.
+
+I'm trying to deconstruct when a transaction initiates. How the mechanism inside ensures the transaction -something accurately, authorized, and immutable. This project serve the purpose of exploratory dive into the operational safeguards that protect digital assets. Through this project, I aim to explore:
+
+- Techincal frameworks: -something
+- Safety protocols: -something
+- Resilience engineering -changethis
+
+---
+
+# Technology Stack
+
+- Runtime Framework: NestJS
+- Language: TypeScript
+- Primary Database: PostgreSQL
+- Distributed Cache: Redis
+- Testing Utilities: Jest & Supertest
+
+---
+
+# Key Feature
+
+## Deadlock-proof concurrency
+
+If 2 people try to send money to each other at exact time, the system can freeze up (deadlock). To prevents the deadlock, sorting rule is used. AccountId is sorted on both Id that was trying request lock. So that, the Thread 2 is forced to wait Thread 1 to finish.
+
+## Tamper evident ledger
+
+Each entry is arranged on "Append only" fashion. Each entry is linked to the one before using cryptographic hash. Ensuring the entry to be tampered.
+
+## Multi-wallet
+
+something
+
+## Idempotency protection
+
+To ensure that no duplicate transaction is processed.
+
+---
+
+# Future Consideration
+
+## Two-Phase Transaction Lifecycle (Hold/Settle)
+
+Allowing system to place hold on funds, enabling merchants to settle payments within a configurable windows
+
+## Fee and Revenue Split
+
+Configurable fee calculator that slice margin off transactions.
+
+## Multi Currency Support
+
+something
+
+## Time Series Table Partitioning
+
+something
+
+---
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
