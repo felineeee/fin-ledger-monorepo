@@ -1,162 +1,150 @@
-# Background
+# Distributed Core Ledger Engine
 
-This project is a exploratory of my curiosity on how companies handle transaction safely. Something beyond CRUD. -changethis
+## Preliminary
 
-I chose Fintech as focal point to this study, due to its operational nature. Fintech operates at -something and its rigid financial regulation. Unlike other -something when failure happen, result in minor inconvinience. A failure in fintech can lead to severe financial loss, regulatory penalties, and systemic instability.
+At some point during my cybersecurity bootcamp, I realized just how many things can go wrong within code—not limited to traditional security vulnerabilities, but rooted deeply in the business logic itself.
 
-I'm trying to deconstruct when a transaction initiates. How the mechanism inside ensures the transaction -something accurately, authorized, and immutable. This project serve the purpose of exploratory dive into the operational safeguards that protect digital assets. Through this project, I aim to explore:
+For example, how does the system handle two people trying to reserve or check out the exact same product simultaneously? How do we resolve those race conditions? Or how does the application maintain transaction integrity to prevent data tampering? Unlike standard applications where software failures result in nothing more than a minor UI glitch, a failure in fintech can lead to catastrophic financial loss, regulatory penalties, and systemic instability.
 
-- Techincal frameworks: -something
-- Safety protocols: -something
-- Resilience engineering -changethis
+Therefore, I decided to embark on a journey to explore these critical challenges. This project will focus on the Core Ledger, often referred to as the System of Record (SoR).
 
----
+My goal is to deconstruct what happens the exact moment a transaction is initiated, analyzing how the underlying internal mechanisms ensure that data is accurately recorded, properly authorized, and entirely immutable. This project serves as an exploratory deep dive into the operational safeguards designed to protect digital assets.
 
-# Technology Stack
+## Technology Stack
 
-- Runtime Framework: NestJS
-- Language: TypeScript
-- Primary Database: PostgreSQL
-- Distributed Cache: Redis
-- Testing Utilities: Jest & Supertest
+| Technology        | Role in Projects  |
+| :---------------- | :---------------- |
+| NestJs            | Runtime Framework |
+| TypeScript        | Language          |
+| Primary Database  | PostgreSQL        |
+| Distributed Cache | Redis             |
+| Jest & Supertest  | Testing Utilities |
 
----
+## Key Feature
 
-# Key Feature
+- **ACID-Compliant Atomic Transfers:** Guarantees mathematical balance integrity using strict PostgreSQL transaction blocks. If any segment of a multi-leg asset transfer fails, the entire operation rolls back—ensuring capital is never artificially duplicated or lost in transit.
+- **Deadlock-Proof Concurrency:** Employs a deterministic, lexicographical row-locking algorithm (`SELECT FOR UPDATE`) to safely serialize high-frequency concurrent transactions, preventing cross-locking database freezes under extreme load.
+- **Tamper-Evident Hash Chains:** Operates strictly as an append-only ledger. Balances are never blindly overwritten; instead, every transaction is cryptographically linked to the previous state via SHA-256 hashes, creating an unalterable, audit-ready chain of custody.
+- **BOLA-Secured Multi-Tenancy:** Supports elastic sub-wallets per user profile (e.g., checking, savings, corporate fee pots) while neutralizing Broken Object Level Authorization (BOLA) threat vectors via hardcoded composite tenant boundaries at the query layer.
+- **Distributed Idempotency Shield:** Utilizes a high-speed Redis caching gateway to intercept and instantly neutralize duplicate network payloads (e.g., laggy "multi-click" client submissions) before they can consume database connection threads.
 
-## Deadlock-proof concurrency
+## System Architecture and API Endpoints
 
-If 2 people try to send money to each other at exact time, the system can freeze up (deadlock). To prevents the deadlock, sorting rule is used. AccountId is sorted on both Id that was trying request lock. So that, the Thread 2 is forced to wait Thread 1 to finish.
+> **Data Standard:** To prevent floating-point rounding errors, all amounts are handled as **unsigned 64-bit integers** representing the minor currency unit (e.g., `$250.00` is submitted as `25000`).
 
-## Tamper evident ledger
+#### 1. Provision Asset Wallet
 
-Each entry is arranged on "Append only" fashion. Each entry is linked to the one before using cryptographic hash. Ensuring the entry to be tampered.
+- **Endpoint:** `POST /accounts`
+- **Auth:** Bearer Token (JWT)
+- **Request Payload:**
 
-## Multi-wallet
+  ```json
+  {
+    "type": "checking",
+    "currency": "USD"
+  }
+  ```
 
-something
+  Response (201 Created):
 
-## Idempotency protection
+  ```JSON
 
-To ensure that no duplicate transaction is processed.
+  {
+  "account_id": "8fa886ef-d758-4061-9c6a-4d2d640b377b"
+  }
+  ```
 
----
+#### 2. Initiate Atomic Transfer
 
-# Future Consideration
+- **Endpoint:** POST /transfers
+- **Auth:** Bearer Token (JWT) + BOLA ownership validation
+- **Headers:** X-Idempotency-Key: <UUID>
+- **Request Payload:**
 
-## Two-Phase Transaction Lifecycle (Hold/Settle)
+  ```JSON
+  {
+  "source_account_id": "8fa886ef-d758-4061-9c6a-4d2d640b377b",
+  "target_account_id": "c1f10be3-bf2e-4360-be87-57519a3b2a2d",
+  "amount": 25000,
+  "description": "Supplier Invoice Settlement"
+  }
+  ```
 
-Allowing system to place hold on funds, enabling merchants to settle payments within a configurable windows
+  Response (200 OK):
 
-## Fee and Revenue Split
+  ```JSON
+  {
+  "transaction_id": "7dc4c243-7bb5-4f33-88fe-51ec1004a4ec"
+  }
+  ```
 
-Configurable fee calculator that slice margin off transactions.
+## Local Setup & Installation
 
-## Multi Currency Support
+**Prequisites**: You must have Node.js (v18+) and Docker installed on your machine.
 
-something
-
-## Time Series Table Partitioning
-
-something
-
----
-
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
-
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+### 1. Clone and Install
 
 ```bash
-$ npm install
+git clone git@github.com:felineeee/core-ledger.git
+cd notif-backend
+npm install
 ```
 
-## Compile and run the project
+### 2. Environment Configuration
 
-```bash
-# development
-$ npm run start
+You can simply just copy the `.env.example` to the `.env`
+. On project directory:
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```
+cp .env.example .env
 ```
 
-## Run tests
+Or create and configure the `.env` file in the root directory and `docker-compose.yml` into your liking.
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+```
+APP_ENV=development
+HTTP_PORT=8080
+DATABASE_URL=postgres://c_log:supersecretpassword@localhost:5432/core_ledger_db_dev?sslmode=disable
+REDIS_URL=redis://localhost:6379/0
 ```
 
-## Deployment
+### 3. Initialize the Application
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```
+npm install
+npm run migration:up
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Unit and Integration Test
 
-## Resources
+Run all standard specs
 
-Check out a few resources that may come in handy when working with NestJS:
+```
+npm run:test
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Future Consideration
 
-## Support
+### Dual-Phase Transaction Lifecycle (Auth & Capture)
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Transitions the ledger from instant processing to a two-step payment flow. It introduces a **Hold (Authorization)** mechanism, granting merchants a configurable time window to either finalize **(Capture)** or cancel **(Void)** funds before final settlement.
 
-## Stay in touch
+### Automated Margin & Fee Routing
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Implements an atomic, rule-based fee engine inside the database transaction boundary. It automatically calculates percentage or flat-rate margins on commercial transfers and routes the platform’s revenue cut into a central treasury wallet in a single, irreversible step.
 
-## License
+### Multi-Currency Custody & FX Swaps
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Upgrades the asset schema to support multi-fiat custody (USD, EUR, GBP, JPY). It integrates an FX rate oracle to execute cross-currency atomic swaps, maintaining exact precision math that respects ISO currency exponents and minor-unit rules.
+
+### Time-Series Table Partitioning
+
+Optimizes the append-only ledger for sub-millisecond query performance at scale using **PostgreSQL native time-series partitioning**. It automatically shards historical transaction data by month or quarter, keeping active indexes lean while streamlining cold-storage data migration.
+
+```
+
+```
+
+```
+
+```
