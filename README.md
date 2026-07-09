@@ -125,26 +125,18 @@ npm run:test
 
 ## Future Consideration
 
-### Dual-Phase Transaction Lifecycle (Auth & Capture)
+[] **Dual-Phase Transaction Lifecycle (Auth & Capture)**
 
 Transitions the ledger from instant processing to a two-step payment flow. It introduces a **Hold (Authorization)** mechanism, granting merchants a configurable time window to either finalize **(Capture)** or cancel **(Void)** funds before final settlement.
 
-### Automated Margin & Fee Routing
+[] **Automated Margin & Fee Routing**
 
 Implements an atomic, rule-based fee engine inside the database transaction boundary. It automatically calculates percentage or flat-rate margins on commercial transfers and routes the platform’s revenue cut into a central treasury wallet in a single, irreversible step.
 
-### Multi-Currency Custody & FX Swaps
+[] **Multi-Currency Custody & FX Swaps**
 
 Upgrades the asset schema to support multi-fiat custody (USD, EUR, GBP, JPY). It integrates an FX rate oracle to execute cross-currency atomic swaps, maintaining exact precision math that respects ISO currency exponents and minor-unit rules.
 
-### Time-Series Table Partitioning
+[] **Time-Series Table Partitioning**
 
 Optimizes the append-only ledger for sub-millisecond query performance at scale using **PostgreSQL native time-series partitioning**. It automatically shards historical transaction data by month or quarter, keeping active indexes lean while streamlining cold-storage data migration.
-
-```
-
-```
-
-```
-
-```
