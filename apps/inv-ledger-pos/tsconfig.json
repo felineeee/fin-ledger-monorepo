@@ -1,6 +1,6 @@
 {
   "extends": "@inv-ledger/tsconfig/base.json",
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../../packages/filters/src/interfaces"],
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
