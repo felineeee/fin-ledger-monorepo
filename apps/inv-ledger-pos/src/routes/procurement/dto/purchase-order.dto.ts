@@ -16,6 +16,7 @@ import {
   NotEquals,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateSupplierDto {
   @IsString()
@@ -32,6 +33,13 @@ export class CreateSupplierDto {
   @Min(0)
   lead_time_days?: number;
 }
+
+export class UpdateSupplierDto extends PartialType(CreateSupplierDto) {
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+}
+
 export class PurchaseOrderItemDto {
   @IsUUID('4')
   @IsNotEmpty()
@@ -70,6 +78,23 @@ export class CreatePurchaseOrderDto {
   items!: PurchaseOrderItemDto[];
 }
 
+export class UpdatePurchaseOrderDto {
+  @IsOptional()
+  @IsUUID('4')
+  supplier_id?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expected_delivery_date?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @ArrayMinSize(1)
+  @Type(() => PurchaseOrderItemDto)
+  items?: PurchaseOrderItemDto[];
+}
+
 export class UpdatePOStatusDto {
   @IsString()
   @IsNotEmpty()
@@ -80,11 +105,7 @@ export class UpdatePOStatusDto {
 export class ReceivePOItemDto {
   @IsUUID('4')
   @IsNotEmpty()
-  product_id!: string;
-
-  @IsOptional()
-  @IsUUID('4')
-  variant_id?: string;
+  po_item_id!: string;
 
   @IsInt()
   @Min(0)

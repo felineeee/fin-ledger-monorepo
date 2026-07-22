@@ -38,6 +38,9 @@ export class CreateTransferDto {
 
   @IsUUID('4')
   @IsNotEmpty()
+  @NotEquals('source_location_id', {
+    message: 'Destination cannot match source location',
+  })
   destination_location_id!: string;
 
   @IsArray()

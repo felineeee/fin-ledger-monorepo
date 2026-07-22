@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Pool, PoolClient } from 'pg';
 import { AppModule } from '@/app.module.js';
-import { LedgerService } from '@/ledger/ledger.service.js';
+import { LedgerService } from '@/routes/ledger/ledger.service.js';
 import * as crypto from 'crypto';
 import { PG_POOL } from '@inv-ledger/database';
 

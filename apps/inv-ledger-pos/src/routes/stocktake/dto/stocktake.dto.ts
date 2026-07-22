@@ -48,3 +48,9 @@ export class CountStocktakeItemsDto {
   @Type(() => CountStocktakeItemDto)
   items!: CountStocktakeItemDto[];
 }
+
+export class CorrectStocktakeItemDto {
+  @IsInt()
+  @Min(0)
+  counted_quantity!: number;
+}

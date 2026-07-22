@@ -40,3 +40,8 @@ export class InventoryAdjustmentDto {
   @IsIn(['SHRINKAGE', 'DAMAGE', 'MANUAL_CORRECTION', 'RETURN_TO_VENDOR'])
   reason!: string;
 }
+export class SetReorderThresholdDto {
+  @IsInt()
+  @Min(0)
+  reorder_threshold!: number;
+}
