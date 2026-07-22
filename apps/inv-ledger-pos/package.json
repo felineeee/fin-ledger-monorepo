@@ -1,0 +1,33 @@
+{
+  "name": "inv-ledger-pos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:migrate": "tsx src/db/migrate_raw.ts",
+    "db:generate": "kysely-codegen --out-file src/db/types.ts --dialect=postgres",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:reset": "npm run db:migrate && npm run db:seed",
+    "db:fresh": "docker compose down -v && docker compose up -d && sleep 2 && npm run db:migrate && npm run db:seed"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "@inv-ledger/database": "*",
+    "@inv-ledger/guard": "*",
+    "@inv-ledger/decorator": "*",
+    "@inv-ledger/interceptor": "*",
+    "@inv-ledger/config": "*",
+    "@inv-ledger/logger": "*",
+    "@inv-ledger/filter": "*"
+  },
+  "devDependencies": {
+    "@inv-ledger/tsconfig": "*",
+    "@faker-js/faker": "^10.5.0",
+    "@types/redlock": "^4.0.8",
+    "kysely-codegen": "^0.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.2.2"
+  }
+}

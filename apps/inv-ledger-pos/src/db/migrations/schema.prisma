@@ -1,0 +1,181 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Location {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar
+  type      String   @default("STORE") @db.VarChar
+  address   String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  inventoryLevels       InventoryLevel[]
+  inventoryLedgers      InventoryLedger[]
+  destinationOrders     PurchaseOrder[]   @relation("PODestination")
+  sourceTransfers       Transfer[]        @relation("TransferSource")
+  destinationTransfers  Transfer[]        @relation("TransferDestination")
+  stocktakes            Stocktake[]
+
+  @@map("locations")
+}
+
+model InventoryLevel {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId       String   @map("location_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid // Soft Reference
+  variantId        String?  @map("variant_id") @db.Uuid // Soft Reference
+  quantityOnHand   Int      @default(0) @map("quantity_on_hand")
+  quantityReserved Int      @default(0) @map("quantity_reserved")
+  reorderPoint     Int?     @map("reorder_point")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  // Indexes & Soft Reference Constraints
+  @@index([productId], map: "idx_inventory_levels_product_id")
+  @@map("inventory_levels")
+}
+
+model InventoryLedger {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId      String   @map("location_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid // Soft Reference
+  variantId       String?  @map("variant_id") @db.Uuid // Soft Reference
+  transactionType String   @map("transaction_type") @db.VarChar
+  quantityChange  Int      @map("quantity_change")
+  referenceType   String?  @map("reference_type") @db.VarChar
+  referenceId     String?  @map("reference_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  // Audit Lookups
+  @@index([locationId, productId, createdAt], map: "idx_inventory_ledger_audit")
+  @@map("inventory_ledger")
+}
+
+model Supplier {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar
+  contactEmail String?  @map("contact_email") @db.VarChar
+  leadTimeDays Int?     @map("lead_time_days")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poNumber              String    @unique @default(dbgenerated("concat('PO-', to_char(now(), 'YYYYMMDD'), '-', substr(md5(random()::text), 1, 4))")) @map("po_number") @db.VarChar
+  supplierId            String    @map("supplier_id") @db.Uuid
+  destinationLocationId String    @map("destination_location_id") @db.Uuid
+  status                String    @default("DRAFT") @db.VarChar
+  expectedDeliveryDate  DateTime? @map("expected_delivery_date") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  supplier            Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  destinationLocation Location            @relation("PODestination", fields: [destinationLocationId], references: [id], onDelete: Restrict)
+  items               PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poId             String  @map("po_id") @db.Uuid
+  productId        String  @map("product_id") @db.Uuid // Soft Reference
+  variantId        String? @map("variant_id") @db.Uuid // Soft Reference
+  quantityOrdered  Int     @map("quantity_ordered")
+  quantityReceived Int     @default(0) @map("quantity_received")
+  unitCost         Decimal @map("unit_cost") @db.Decimal(12, 4)
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([poId], map: "idx_po_items_po_id")
+  @@index([productId], map: "idx_po_items_product_id")
+  @@map("purchase_order_items")
+}
+
+model Transfer {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trackingNumber        String    @unique @default(dbgenerated("concat('TR-', to_char(now(), 'YYYYMMDD'), '-', substr(md5(random()::text), 1, 4))")) @map("tracking_number") @db.VarChar
+  sourceLocationId      String    @map("source_location_id") @db.Uuid
+  destinationLocationId String    @map("destination_location_id") @db.Uuid
+  status                String    @default("PENDING") @db.VarChar
+  dispatchedAt          DateTime? @map("dispatched_at") @db.Timestamptz
+  receivedAt            DateTime? @map("received_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  sourceLocation      Location       @relation("TransferSource", fields: [sourceLocationId], references: [id], onDelete: Restrict)
+  destinationLocation Location       @relation("TransferDestination", fields: [destinationLocationId], references: [id], onDelete: Restrict)
+  items               TransferItem[]
+
+  @@map("transfers")
+}
+
+model TransferItem {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transferId         String  @map("transfer_id") @db.Uuid
+  productId          String  @map("product_id") @db.Uuid // Soft Reference
+  variantId          String? @map("variant_id") @db.Uuid // Soft Reference
+  quantityRequested  Int     @map("quantity_requested")
+  quantityDispatched Int     @default(0) @map("quantity_dispatched")
+  quantityReceived   Int     @default(0) @map("quantity_received")
+
+  // Relations
+  transfer Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([transferId], map: "idx_transfer_items_transfer_id")
+  @@index([productId], map: "idx_transfer_items_product_id")
+  @@map("transfer_items")
+}
+
+model Stocktake {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId  String    @map("location_id") @db.Uuid
+  status      String    @default("IN_PROGRESS") @db.VarChar
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+
+  // Relations
+  location Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  items    StocktakeItem[]
+
+  @@map("stocktakes")
+}
+
+model StocktakeItem {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stocktakeId      String  @map("stocktake_id") @db.Uuid
+  productId        String  @map("product_id") @db.Uuid // Soft Reference
+  variantId        String? @map("variant_id") @db.Uuid // Soft Reference
+  expectedQuantity Int     @map("expected_quantity")
+  countedQuantity  Int     @default(0) @map("counted_quantity")
+  variance         Int     @default(0)
+
+  // Relations
+  stocktake Stocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([productId], map: "idx_stocktake_items_product_id")
+  @@map("stocktake_items")
+}

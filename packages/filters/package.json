@@ -1,0 +1,14 @@
+{
+  "name": "@inv-ledger/filter",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "src/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0"
+  }
+}
