@@ -53,6 +53,10 @@ export class CreateTransferDto {
 export class DispatchTransferItemDto {
   @IsUUID('4')
   @IsNotEmpty()
+  transfer_item_id!: string;
+
+  @IsUUID('4')
+  @IsNotEmpty()
   product_id!: string;
 
   @IsOptional()
@@ -72,6 +76,10 @@ export class DispatchTransferDto {
 }
 
 export class ReceiveTransferItemDto {
+  @IsUUID('4')
+  @IsNotEmpty()
+  transfer_item_id!: string;
+
   @IsUUID('4')
   @IsNotEmpty()
   product_id!: string;
