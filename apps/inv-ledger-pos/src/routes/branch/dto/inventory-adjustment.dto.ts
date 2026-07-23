@@ -37,11 +37,23 @@ export class InventoryAdjustmentDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsIn(['SHRINKAGE', 'DAMAGE', 'MANUAL_CORRECTION', 'RETURN_TO_VENDOR'])
+  @IsIn(['SHRINKAGE', 'DAMAGE', 'CORRECTION', 'RETURN'])
+  transaction_type!: string;
+
+  @IsOptional()
+  @IsString()
+  reference_type?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  reference_id?: string;
+
+  @IsString()
+  @IsNotEmpty()
   reason!: string;
 }
 export class SetReorderThresholdDto {
   @IsInt()
   @Min(0)
-  reorder_threshold!: number;
+  reorder_point!: number;
 }
