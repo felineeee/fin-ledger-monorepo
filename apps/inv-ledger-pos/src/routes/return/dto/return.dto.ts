@@ -33,8 +33,9 @@ export class ProcessReturnDto {
   @IsInt()
   @Min(1)
   quantity!: number;
-
-  @IsOptional()
-  @IsString()
-  reason?: string;
+}
+export class RestockReturnDto {
+  @IsUUID('4')
+  @IsNotEmpty()
+  destination_location_id!: string;
 }
