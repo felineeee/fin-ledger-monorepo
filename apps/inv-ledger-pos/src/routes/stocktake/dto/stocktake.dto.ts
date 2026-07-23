@@ -41,7 +41,7 @@ export class CountStocktakeItemDto {
   counted_quantity!: number;
 }
 
-export class CountStocktakeItemsDto {
+export class SubmitCountBatchDto {
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)
@@ -49,7 +49,7 @@ export class CountStocktakeItemsDto {
   items!: CountStocktakeItemDto[];
 }
 
-export class CorrectStocktakeItemDto {
+export class CorrectStockTakeItemDto {
   @IsInt()
   @Min(0)
   counted_quantity!: number;
