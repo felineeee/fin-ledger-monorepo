@@ -1,12 +1,15 @@
+
+# ER Diagram
 ```mermaid
 erDiagram
     %% Relationships
     locations ||--o{ inventory_levels : "has levels"
     locations ||--o{ inventory_ledger : "logs events"
-    locations ||--o{ purchase_orders : "receives (destination)"
-    locations ||--o{ transfers : "dispatches (source)"
-    locations ||--o{ transfers : "receives (destination)"
+    locations ||--o{ transfers : "dispatches"
+    locations ||--o{ transfers : "receive"
     locations ||--o{ stocktakes : "conducts"
+    locations ||--o{ purchase_orders : "receives"
+
     
     suppliers ||--o{ purchase_orders : "fulfills"
     purchase_orders ||--o{ purchase_order_items : "contains"
@@ -115,5 +118,77 @@ erDiagram
         integer expected_quantity
         integer counted_quantity
         integer variance
+    }
+```
+
+# Inventory Lifecycle
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Purchase Order Lifecycle" as PO {
+        [*] --> DRAFT : Create
+
+        DRAFT --> SENT : Finalize & Send
+        DRAFT --> CANCELLED : Cancel
+
+        SENT --> PARTIALLY_RECEIVED : Partial
+        SENT --> RECEIVED : Full
+
+        state PARTIALLY_RECEIVED {
+            [*] --> InProgress
+            InProgress --> InProgress : Additional
+        }
+
+        PARTIALLY_RECEIVED --> RECEIVED : Final
+
+        RECEIVED --> [*]
+        CANCELLED --> [*]
+    }
+```
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Inter-Branch Transfers" as Transfer {
+        [*] --> PENDING : Submit Request
+        
+        PENDING --> CANCELLED_TR : Cancel
+        PENDING --> IN_TRANSIT : Dispatch (Deducts Origin)
+        
+        IN_TRANSIT --> COMPLETED : Receive (Increments Dest)
+        IN_TRANSIT --> REJECTED : Refuse Shipment
+        
+        COMPLETED --> [*]
+        CANCELLED_TR --> [*]
+        REJECTED --> [*]
+    }
+```
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Stocktake Sessions" as Stocktake {
+        [*] --> IN_PROGRESS : Start & Snapshot
+        
+        IN_PROGRESS --> ABORTED : Delete Session
+        IN_PROGRESS --> FINALIZED : Complete (Calculates Variance)
+        
+        FINALIZED --> [*]
+        ABORTED --> [*]
+    }
+```
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Returns" as Returns {
+        [*] --> QUARANTINE : Process Return
+        
+        QUARANTINE --> RESTOCKED : Move to Sales Floor
+        QUARANTINE --> DISCARDED : Write-off (Damage)
+        
+        RESTOCKED --> [*]
+        DISCARDED --> [*]
     }
 ```
