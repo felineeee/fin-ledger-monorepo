@@ -1,5 +1,5 @@
 {
-  "name": "@inv-ledger/interceptor",
+  "name": "@fin-ledger/interceptor",
   "version": "1.0.0",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "rxjs": "^7.8.0",
-    "@inv-ledger/cache": "*"
+    "@fin-ledger/cache": "*"
   },
   "devDependencies": {
-    "@inv-ledger/tsconfig": "*"
+    "@fin-ledger/tsconfig": "*"
   }
 }

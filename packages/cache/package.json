@@ -1,5 +1,5 @@
 {
-  "name": "@inv-ledger/cache",
+  "name": "@fin-ledger/cache",
   "version": "1.0.0",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -12,6 +12,6 @@
     "redis": "^4.6.0"
   },
   "devDependencies": {
-    "@inv-ledger/tsconfig": "*"
+    "@fin-ledger/tsconfig": "*"
   }
 }

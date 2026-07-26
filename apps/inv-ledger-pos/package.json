@@ -1,5 +1,5 @@
 {
-  "name": "inv-ledger-pos",
+  "name": "fin-ledger-pos",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,16 +14,17 @@
   },
   "dependencies": {
     "dotenv": "^16.3.1",
-    "@inv-ledger/database": "*",
-    "@inv-ledger/guard": "*",
-    "@inv-ledger/decorator": "*",
-    "@inv-ledger/interceptor": "*",
-    "@inv-ledger/config": "*",
-    "@inv-ledger/logger": "*",
-    "@inv-ledger/filter": "*"
+    "@fin-ledger/database": "*",
+    "@fin-ledger/guard": "*",
+    "@fin-ledger/decorator": "*",
+    "@fin-ledger/interceptor": "*",
+    "@fin-ledger/config": "*",
+    "@fin-ledger/logger": "*",
+    "@nestjs/mapped-types": "*",
+    "@fin-ledger/filter": "*"
   },
   "devDependencies": {
-    "@inv-ledger/tsconfig": "*",
+    "@fin-ledger/tsconfig": "*",
     "@faker-js/faker": "^10.5.0",
     "@types/redlock": "^4.0.8",
     "kysely-codegen": "^0.11.0",

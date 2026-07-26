@@ -1,5 +1,5 @@
 {
-  "name": "@inv-ledger/guard",
+  "name": "@fin-ledger/guard",
   "version": "1.0.0",
   "main": "src/index.js",
   "module": "src/index.js",
