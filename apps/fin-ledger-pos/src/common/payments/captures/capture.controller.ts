@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { CaptureService } from './capture.service.js';
-import { CaptureCardPresentDto, ReversePaymentDto } from './dto/capture.dto.js';
+import { CaptureCardPresentDto, ReversePaymentDto } from '../dto/capture.dto.js';
 
 @ApiTags('payments-capture')
 @ApiBearerAuth()

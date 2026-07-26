@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiHeader } from '@nestjs/swagger';
 import { SplitTenderService } from './split.service.js';
-import { SplitPaymentDto, OrderBalanceQueryDto } from './dto/split.dto.js';
+import { SplitPaymentDto, OrderBalanceQueryDto } from '../dto/split.dto.js';
 
 @ApiTags('split-tender')
 @ApiBearerAuth()

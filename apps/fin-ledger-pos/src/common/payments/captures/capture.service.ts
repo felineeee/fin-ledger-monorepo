@@ -1,8 +1,8 @@
 // src/payments/capture.service.ts
 import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
-import { DB } from '../../db/types.js';
-import { CaptureCardPresentDto, ReversePaymentDto } from './dto/capture.dto.js';
+import { DB } from '../../../db/types.js';
+import { CaptureCardPresentDto, ReversePaymentDto } from '../dto/capture.dto.js';
 
 @Injectable()
 export class CaptureService {

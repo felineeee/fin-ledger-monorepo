@@ -3,9 +3,11 @@ import 'dotenv/config';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { Pool } from 'pg';
+import pg from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Migrator, FileMigrationProvider } from 'kysely/migration';
+
+const { Pool } = pg;
 
 async function migrateToLatest() {
   const __filename = fileURLToPath(import.meta.url);
@@ -16,7 +18,7 @@ async function migrateToLatest() {
     max: 10,
   });
 
-  const db = new Kysely<unknown>({
+  const db = new Kysely<any>({
     dialect: new PostgresDialect({ pool }),
   });
 

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { SplitTenderService } from './split.service.js';
-import { SplitController } from './split/split.controller.js';
+import { SplitTenderController } from './split.controller.js';
 
 @Module({
-  controllers: [SplitController],
+  controllers: [SplitTenderController],
   providers: [SplitTenderService],
 })
 export class SplitModule {}

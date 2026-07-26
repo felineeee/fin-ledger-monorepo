@@ -1,8 +1,8 @@
 // src/payments/split.service.ts
 import { Injectable, ConflictException, Inject } from '@nestjs/common';
 import { Kysely } from 'kysely';
-import { DB } from '../../db/types.js';
-import { SplitPaymentDto, OrderBalanceQueryDto } from './dto/split.dto.js';
+import { DB } from '../../../db/types.js';
+import { SplitPaymentDto, OrderBalanceQueryDto } from '../dto/split.dto.js';
 
 @Injectable()
 export class SplitTenderService {

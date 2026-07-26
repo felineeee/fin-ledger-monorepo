@@ -1,5 +1,7 @@
 import type { ColumnType } from "kysely";
 
+export type DisputeStatus = "LOST" | "PENDING" | "WON";
+
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
@@ -28,6 +30,8 @@ export type PaymentStatus = "AUTHORIZED" | "CAPTURED" | "FAILED" | "PARTIALLY_RE
 
 export type RefundStatus = "COMPLETED" | "FAILED" | "PENDING";
 
+export type SettlementStatus = "PAID" | "PENDING";
+
 export type ShiftStatus = "CLOSED" | "FORCE_CLOSED" | "OPEN";
 
 export type TerminalStatus = "ACTIVE" | "INACTIVE" | "MAINTENANCE";
@@ -40,6 +44,26 @@ export interface CashDrops {
   id: Generated<string>;
   recorded_by: string;
   shift_id: string;
+}
+
+export interface Disputes {
+  amount: Numeric;
+  created_at: Generated<Timestamp>;
+  evidence_text: string | null;
+  evidence_url: string | null;
+  id: Generated<string>;
+  payment_id: string;
+  status: Generated<DisputeStatus>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface FeeSchedules {
+  created_at: Generated<Timestamp>;
+  flat_fee: Generated<Numeric>;
+  id: Generated<string>;
+  payment_method_id: string;
+  percentage_fee: Generated<Numeric>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface PaymentLedger {
@@ -87,6 +111,16 @@ export interface Refunds {
   updated_at: Generated<Timestamp>;
 }
 
+export interface Settlements {
+  amount: Numeric;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  provider: string;
+  settled_at: Timestamp | null;
+  status: Generated<SettlementStatus>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Shifts {
   actual_cash: Numeric | null;
   cashier_id: string;
@@ -109,12 +143,25 @@ export interface Terminals {
   status: Generated<TerminalStatus>;
 }
 
+export interface WebhookEvents {
+  created_at: Generated<Timestamp>;
+  event_id: string;
+  event_type: string;
+  id: Generated<string>;
+  payload: Json;
+  payment_id: string | null;
+}
+
 export interface DB {
   cash_drops: CashDrops;
+  disputes: Disputes;
+  fee_schedules: FeeSchedules;
   payment_ledger: PaymentLedger;
   payment_methods: PaymentMethods;
   payments: Payments;
   refunds: Refunds;
+  settlements: Settlements;
   shifts: Shifts;
   terminals: Terminals;
+  webhook_events: WebhookEvents;
 }
