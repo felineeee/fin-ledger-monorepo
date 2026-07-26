@@ -2,6 +2,8 @@
   "extends": "@fin-ledger/tsconfig/base.json",
   "include": ["src/**/*"],
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
     "paths": {
       "@/*.js": ["./src/*.ts"],
       "@/*": ["./src/*"]

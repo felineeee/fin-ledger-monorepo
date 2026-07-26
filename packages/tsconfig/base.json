@@ -3,8 +3,6 @@
     "target": "ES2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "rootDir": "src",
-    "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,7 +11,7 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  },
-  "include": ["src/**/*.ts"]
+    "emitDecoratorMetadata": true,
+    "ignoreDeprecations": "6.0"
+  }
 }

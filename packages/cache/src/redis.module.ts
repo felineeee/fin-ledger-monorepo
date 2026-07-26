@@ -14,7 +14,7 @@ import { REDIS_CLIENT } from './redis.constants.js';
 @Module({
   providers: [
     {
-      provide: 'REDIS_CLIENT',
+      provide: REDIS_CLIENT,
       useFactory: (configService: ConfigService) => {
         const redisUrl = configService.get<string>(
           'REDIS_URL',
@@ -37,7 +37,6 @@ export class RedisModule implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onApplicationShutdown() {
-    // node-redis v4 uses .disconnect() or .quit() instead of .destroy()
     if (this.redisClient.isOpen) {
       await this.redisClient.quit();
     }
