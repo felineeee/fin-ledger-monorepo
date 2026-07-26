@@ -1,8 +1,18 @@
 // src/payments/dto/split.dto.ts
-import { IsNumber, IsNotEmpty, IsOptional, IsUUID, IsEnum, Min, ValidateNested, IsArray, IsString } from 'class-validator';
+import {
+  IsNumber,
+  IsNotEmpty,
+  IsOptional,
+  IsUUID,
+  IsEnum,
+  Min,
+  ValidateNested,
+  IsArray,
+  IsString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PaymentChannel } from '../../../db/types.js';
+import type { PaymentChannel } from '../../../db/types.js';
 
 export class SplitPaymentItemDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -15,7 +25,10 @@ export class SplitPaymentItemDto {
   @IsNotEmpty()
   channel!: PaymentChannel;
 
-  @ApiProperty({ example: 25000, description: 'Amount covered by this specific method' })
+  @ApiProperty({
+    example: 25000,
+    description: 'Amount covered by this specific method',
+  })
   @IsNumber()
   @Min(1)
   amount!: number;
@@ -30,14 +43,20 @@ export class SplitPaymentItemDto {
   @IsUUID('4')
   terminal_id?: string;
 
-  @ApiPropertyOptional({ example: 'AUTH999', description: 'Terminal auth code if pre-captured on hardware' })
+  @ApiPropertyOptional({
+    example: 'AUTH999',
+    description: 'Terminal auth code if pre-captured on hardware',
+  })
   @IsOptional()
   @IsString()
   auth_code?: string;
 }
 
 export class SplitPaymentDto {
-  @ApiProperty({ type: [SplitPaymentItemDto], description: 'Array of payments making up the split tender' })
+  @ApiProperty({
+    type: [SplitPaymentItemDto],
+    description: 'Array of payments making up the split tender',
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SplitPaymentItemDto)
@@ -46,7 +65,10 @@ export class SplitPaymentDto {
 }
 
 export class OrderBalanceQueryDto {
-  @ApiProperty({ example: 100000, description: 'The grand total of the order from the POS/Cart service' })
+  @ApiProperty({
+    example: 100000,
+    description: 'The grand total of the order from the POS/Cart service',
+  })
   @IsNumber()
   @Min(0)
   @Type(() => Number)

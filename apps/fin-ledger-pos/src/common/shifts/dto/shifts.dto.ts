@@ -1,27 +1,46 @@
 // src/shifts/dto/shifts.dto.ts
-import { IsNumber, IsNotEmpty, IsOptional, IsUUID, Min, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  IsNotEmpty,
+  IsOptional,
+  IsUUID,
+  Min,
+  IsEnum,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ShiftStatus } from '../../../db/types.js';
+import type { ShiftStatus } from '../../../db/types.js';
 
 export class OpenShiftDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Store location ID' })
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Store location ID',
+  })
   @IsUUID('4')
   @IsNotEmpty()
   location_id!: string;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Employee/Cashier ID' })
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Employee/Cashier ID',
+  })
   @IsUUID('4')
   @IsNotEmpty()
   cashier_id!: string;
 
-  @ApiProperty({ example: 500000, description: 'Starting cash float in the drawer (e.g., IDR)' })
+  @ApiProperty({
+    example: 500000,
+    description: 'Starting cash float in the drawer (e.g., IDR)',
+  })
   @IsNumber()
   @Min(0)
   starting_float!: number;
 }
 
 export class CashDropDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Active Shift ID' })
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Active Shift ID',
+  })
   @IsUUID('4')
   @IsNotEmpty()
   shift_id!: string;
@@ -31,7 +50,10 @@ export class CashDropDto {
   @Min(1)
   amount!: number;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'Manager/Cashier recording the drop' })
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Manager/Cashier recording the drop',
+  })
   @IsUUID('4')
   @IsNotEmpty()
   recorded_by!: string;
@@ -43,7 +65,10 @@ export class CloseShiftDto {
   @IsNotEmpty()
   shift_id!: string;
 
-  @ApiProperty({ example: 2500000, description: 'Actual physical cash counted in the drawer' })
+  @ApiProperty({
+    example: 2500000,
+    description: 'Actual physical cash counted in the drawer',
+  })
   @IsNumber()
   @Min(0)
   actual_cash!: number;

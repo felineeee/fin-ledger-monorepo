@@ -1,7 +1,4 @@
 {
   "extends": "@inv-ledger/tsconfig/base.json",
-  "include": ["src/**/*"],
-  "compilerOptions": {
-    "ignoreDeprecations": "6.0"
-  }
+  "include": ["src/**/*"]
 }

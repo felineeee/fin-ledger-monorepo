@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
-import { DB } from '@/db/types.js';
-import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto.js';
+import { DB } from '../../db/types.js';
+import {
+  CreatePaymentMethodDto,
+  UpdatePaymentMethodDto,
+} from './dto/payment-method.dto.js';
 @Injectable()
 export class PaymentMethodsService {
-    constructor(private readonly db: Kysely<DB>){}
+  constructor(private readonly db: Kysely<DB>) {}
 
-    // [x] GET /api/payment-methods
+  // [x] GET /api/payment-methods
   async findAll() {
     return this.db
       .selectFrom('payment_methods')
@@ -54,7 +57,8 @@ export class PaymentMethodsService {
     if (dto.name !== undefined) updatePayload.name = dto.name;
     if (dto.type !== undefined) updatePayload.type = dto.type;
     if (dto.is_active !== undefined) updatePayload.is_active = dto.is_active;
-    if (dto.config !== undefined) updatePayload.config = JSON.stringify(dto.config);
+    if (dto.config !== undefined)
+      updatePayload.config = JSON.stringify(dto.config);
 
     // If payload is empty, just return existing record
     if (Object.keys(updatePayload).length === 0) {

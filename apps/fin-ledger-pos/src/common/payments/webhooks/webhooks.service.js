@@ -1,0 +1,109 @@
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+// src/payments/webhooks.service.ts
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import { Kysely, sql } from 'kysely';
+let WebhooksService = class WebhooksService {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    // Helper to fetch the Xendit Webhook Secret from our config
+    async getWebhookSecret() {
+        const method = await this.db.selectFrom('payment_methods')
+            .selectAll()
+            .where('name', '=', 'Xendit Gateway')
+            .executeTakeFirst();
+        if (!method)
+            return null;
+        const config = typeof method.config === 'string' ? JSON.parse(method.config) : method.config;
+        return config.webhook_secret;
+    }
+    // [x] POST /api/webhooks/gateway
+    async handleGatewayWebhook(callbackToken, payload) {
+        // 1. Verify Xendit Token
+        const expectedToken = await this.getWebhookSecret();
+        if (expectedToken && callbackToken !== expectedToken) {
+            throw new UnauthorizedException('Invalid callback token');
+        }
+        const eventId = payload.id; // Xendit's unique event/invoice ID
+        const externalId = payload.external_id; // This maps directly to our `payments.id`
+        return this.db.transaction().execute(async (trx) => {
+            // 2. Idempotency Check: Have we processed this specific webhook event before?
+            const existingEvent = await trx.selectFrom('webhook_events')
+                .selectAll().where('event_id', '=', eventId).executeTakeFirst();
+            if (existingEvent)
+                return { success: true, message: 'Already processed' };
+            // 3. Log the Webhook
+            await trx.insertInto('webhook_events')
+                .values({
+                event_id: eventId,
+                payment_id: externalId || null,
+                event_type: payload.status || 'UNKNOWN',
+                payload: JSON.stringify(payload),
+            })
+                .execute();
+            // 4. Process Payment State based on Xendit Status
+            if (externalId && payload.status === 'PAID') {
+                const payment = await trx.selectFrom('payments').selectAll().where('id', '=', externalId).executeTakeFirst();
+                if (payment && payment.status === 'PENDING') {
+                    // Update State
+                    await trx.updateTable('payments')
+                        .set({ status: 'CAPTURED', updated_at: sql `NOW()` })
+                        .where('id', '=', externalId)
+                        .execute();
+                    // Write Realization to Ledger
+                    await trx.insertInto('payment_ledger')
+                        .values({
+                        payment_id: externalId,
+                        entry_type: 'CAPTURED',
+                        amount: payment.amount,
+                        currency: payment.currency,
+                        metadata: JSON.stringify({ xendit_invoice_id: eventId, channel: payload.payment_method }),
+                    })
+                        .execute();
+                }
+            }
+            if (externalId && payload.status === 'EXPIRED') {
+                const payment = await trx.selectFrom('payments').selectAll().where('id', '=', externalId).executeTakeFirst();
+                if (payment && payment.status === 'PENDING') {
+                    await trx.updateTable('payments')
+                        .set({ status: 'FAILED', updated_at: sql `NOW()` })
+                        .where('id', '=', externalId)
+                        .execute();
+                }
+            }
+            return { success: true };
+        });
+    }
+    // [x] GET /api/webhooks/events
+    async getWebhookEvents() {
+        return this.db.selectFrom('webhook_events')
+            .selectAll()
+            .orderBy('created_at', 'desc')
+            .execute();
+    }
+    // [x] GET /api/webhooks/events/:id
+    async getWebhookEventDetails(id) {
+        return this.db.selectFrom('webhook_events')
+            .selectAll()
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow();
+    }
+};
+WebhooksService = __decorate([
+    Injectable(),
+    __param(0, Inject('DB_INSTANCE')),
+    __metadata("design:paramtypes", [Kysely])
+], WebhooksService);
+export { WebhooksService };

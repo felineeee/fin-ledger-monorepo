@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/main.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/main.js",
     "db:migrate": "tsx src/db/migrate_raw.ts",
     "db:generate": "kysely-codegen --out-file src/db/types.ts --dialect=postgres",
     "db:seed": "tsx src/db/seed.ts",

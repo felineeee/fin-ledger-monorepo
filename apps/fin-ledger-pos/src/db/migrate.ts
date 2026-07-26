@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Migrator, FileMigrationProvider } from 'kysely/migration';
-import { PG_POOL } from '@inv-ledger/database';
+import { PG_POOL } from '@fin-ledger/database';
 
 @Injectable()
 export class MigrationService {

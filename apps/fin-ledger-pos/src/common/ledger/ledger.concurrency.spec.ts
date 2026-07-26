@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Pool, PoolClient } from 'pg';
-import { AppModule } from '@/app.module.js';
-import { LedgerService } from '@/common/ledger/ledger.service.js';
+import { AppModule } from '../../app.module.js';
+import { LedgerService } from '../../common/ledger/ledger.service.js';
 import * as crypto from 'crypto';
-import { PG_POOL } from '@inv-ledger/database';
+import { PG_POOL } from '@fin-ledger/database';
 
 describe('Ledger Engine Adversarial Concurrency Test', () => {
   let ledgerService: LedgerService;
@@ -33,6 +33,7 @@ describe('Ledger Engine Adversarial Concurrency Test', () => {
             del: jest.fn().mockResolvedValue(null),
           };
         }
+        return jest.fn();
       })
       .compile();
 

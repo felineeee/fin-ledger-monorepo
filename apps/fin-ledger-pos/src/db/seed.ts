@@ -1,15 +1,16 @@
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { randomUUID } from 'node:crypto';
-import { Pool } from 'pg';
+import pg from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
-import { DB } from './types.js';
 
 // Ensure .env is loaded
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+const { Pool } = pg;
+
 async function runSeed() {
-  console.log('Starting Database Seed Batch...\n');
+  console.log('Starting Payments & Finance Database Seed Batch...\n');
 
   if (!process.env.DATABASE_URL) {
     console.error('Error: DATABASE_URL is not set in environment.');
@@ -20,291 +21,277 @@ async function runSeed() {
     connectionString: process.env.DATABASE_URL,
   });
 
-  const db = new Kysely<DB>({
+  // Using <any> since we are just pushing raw data based on the schema definitions
+  const db = new Kysely<any>({
     dialect: new PostgresDialect({ pool }),
   });
 
   try {
-    // Generate a unique 4-digit batch suffix based on execution timestamp
     const batchSuffix = Date.now().toString().slice(-4);
     const nowIso = new Date().toISOString();
 
+    // Generate fixed UUIDs for relationships across the transaction
     const ids = {
-      product: randomUUID(),
-      variantS: randomUUID(),
-      warehouse: randomUUID(),
-      store: randomUUID(),
-      supplier: randomUUID(),
-      po: randomUUID(),
-      transfer: randomUUID(),
-      stocktake: randomUUID(),
-      // Dynamic unique identifiers for reconciliation batch safety
-      poNumber: `PO-2026-${batchSuffix}`,
-      trackingNumber: `TRF-${batchSuffix}`,
+      location: randomUUID(),
+      cashier: randomUUID(),
+      order1: randomUUID(),
+      order2: randomUUID(),
+
+      methodCash: randomUUID(),
+      methodCard: randomUUID(),
+      methodOnline: randomUUID(),
+
+      terminal: randomUUID(),
+      shift: randomUUID(),
+
+      paymentCash: randomUUID(),
+      paymentOnline: randomUUID(),
     };
 
     let totalRowsInserted = 0;
-    let totalRowsUpdated = 0;
 
     await db.transaction().execute(async (trx) => {
       // --------------------------------------------------------
-      // 1. LOCATIONS
+      // 1. PAYMENT METHODS & FEES (Phase 1 & 5)
       // --------------------------------------------------------
-      const locationsRes = await trx
-        .insertInto('locations')
+      const methodsRes = await trx
+        .insertInto('payment_methods')
         .values([
           {
-            id: ids.warehouse,
-            name: 'Main Distribution Center',
-            type: 'WAREHOUSE',
+            id: ids.methodCash,
+            name: 'Main Register Cash',
+            type: 'CASH',
             is_active: true,
+            config: JSON.stringify({ require_drawer_open: true }),
           },
           {
-            id: ids.store,
-            name: 'Downtown Retail Store',
-            type: 'STORE',
+            id: ids.methodCard,
+            name: 'Stripe Terminal (Card)',
+            type: 'CARD',
             is_active: true,
-          },
-        ])
-        .onConflict((oc) => oc.column('id').doNothing())
-        .execute();
-
-      const locationsCount = Number(
-        locationsRes[0]?.numInsertedOrUpdatedRows ?? 0,
-      );
-      totalRowsInserted += locationsCount;
-      console.log(
-        `[1/5] Locations: Ensured base locations exist (${locationsCount} new)`,
-      );
-
-      // --------------------------------------------------------
-      // 2. INVENTORY LEVELS
-      // --------------------------------------------------------
-      // Initialize or bump stock levels for this run's generated product/variant
-      const levelsRes = await trx
-        .insertInto('inventory_levels')
-        .values([
-          {
-            id: randomUUID(),
-            location_id: ids.warehouse,
-            product_id: ids.product,
-            variant_id: ids.variantS,
-            quantity_on_hand: 100,
-            quantity_reserved: 0,
-            reorder_point: 20,
+            config: JSON.stringify({ provider: 'stripe' }),
           },
           {
-            id: randomUUID(),
-            location_id: ids.store,
-            product_id: ids.product,
-            variant_id: ids.variantS,
-            quantity_on_hand: 10,
-            quantity_reserved: 0,
-            reorder_point: 5,
+            id: ids.methodOnline,
+            name: 'Xendit Gateway (VA & QRIS)',
+            type: 'VIRTUAL_ACCOUNT',
+            is_active: true,
+            config: JSON.stringify({
+              api_key: 'xnd_dev_mock_key',
+              enabled_channels: ['VIRTUAL_ACCOUNT', 'QRIS'],
+            }),
           },
         ])
         .execute();
 
-      const levelsCount = Number(levelsRes[0]?.numInsertedOrUpdatedRows ?? 2);
-      totalRowsInserted += levelsCount;
+      const feesRes = await trx
+        .insertInto('fee_schedules')
+        .values([
+          { payment_method_id: ids.methodCash, flat_fee: 0, percentage_fee: 0 },
+          {
+            payment_method_id: ids.methodCard,
+            flat_fee: 0,
+            percentage_fee: 0.029,
+          }, // 2.9%
+          {
+            payment_method_id: ids.methodOnline,
+            flat_fee: 4000,
+            percentage_fee: 0,
+          }, // Flat Rp 4000
+        ])
+        .execute();
+
+      const phase1Count =
+        Number(methodsRes[0]?.numInsertedOrUpdatedRows ?? 3) +
+        Number(feesRes[0]?.numInsertedOrUpdatedRows ?? 3);
+      totalRowsInserted += phase1Count;
       console.log(
-        `[2/5] Inventory Levels: Initialized stock records for Product ${ids.product.slice(0, 8)}...`,
+        `[1/5] Configuration: Seeded Payment Methods & Fee Schedules (${phase1Count} records)`,
       );
 
       // --------------------------------------------------------
-      // 3. PURCHASE ORDERS (PO Batch)
+      // 2. TERMINALS & SHIFTS (Phase 2)
       // --------------------------------------------------------
-      const supplierRes = await trx
-        .insertInto('suppliers')
+      const terminalRes = await trx
+        .insertInto('terminals')
         .values({
-          id: ids.supplier,
-          name: `Supplier Batch-${batchSuffix}`,
-          contact_email: `sales-${batchSuffix}@acmetextiles.com`,
-          lead_time_days: 14,
-          is_active: true,
+          id: ids.terminal,
+          location_id: ids.location,
+          name: `Front Desk POS - ${batchSuffix}`,
+          serial_number: `STRIPE-TM-${batchSuffix}`,
+          status: 'ACTIVE',
         })
         .execute();
 
-      const poRes = await trx
-        .insertInto('purchase_orders')
+      const shiftRes = await trx
+        .insertInto('shifts')
         .values({
-          id: ids.po,
-          po_number: ids.poNumber, // e.g. PO-2026-4812
-          supplier_id: ids.supplier,
-          destination_location_id: ids.warehouse,
-          status: 'RECEIVED',
+          id: ids.shift,
+          location_id: ids.location,
+          cashier_id: ids.cashier,
+          status: 'CLOSED',
+          starting_float: 500000, // IDR 500k float
+          expected_cash: 650000, // Expected end-of-day
+          actual_cash: 650000, // Perfect balance
+          variance: 0,
+          closed_at: nowIso,
         })
         .execute();
 
-      const poItemsRes = await trx
-        .insertInto('purchase_order_items')
+      const dropRes = await trx
+        .insertInto('cash_drops')
         .values({
           id: randomUUID(),
-          po_id: ids.po,
-          product_id: ids.product,
-          variant_id: ids.variantS,
-          quantity_ordered: 100,
-          quantity_received: 100,
-          unit_cost: '5.0000',
-        })
-        .execute();
-
-      const poLedgerRes = await trx
-        .insertInto('inventory_ledger')
-        .values({
-          id: randomUUID(),
-          location_id: ids.warehouse,
-          product_id: ids.product,
-          variant_id: ids.variantS,
-          transaction_type: 'RECEIPT',
-          quantity_change: 100,
-          reference_type: 'PO',
-          reference_id: ids.po,
+          shift_id: ids.shift,
+          amount: 1000000,
+          recorded_by: ids.cashier,
         })
         .execute();
 
       const phase2Count =
-        Number(supplierRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(poRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(poItemsRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(poLedgerRes[0]?.numInsertedOrUpdatedRows ?? 1);
+        Number(terminalRes[0]?.numInsertedOrUpdatedRows ?? 1) +
+        Number(shiftRes[0]?.numInsertedOrUpdatedRows ?? 1) +
+        Number(dropRes[0]?.numInsertedOrUpdatedRows ?? 1);
       totalRowsInserted += phase2Count;
       console.log(
-        `[3/5] Purchase Orders: Processed ${ids.poNumber} (${phase2Count} records)`,
+        `[2/5] Hardware & Operations: Configured Terminal and POS Shift (${phase2Count} records)`,
       );
 
       // --------------------------------------------------------
-      // 4. TRANSFERS (Transfer Batch)
+      // 3. PAYMENTS & LEDGER (Phase 2, 3, 4)
       // --------------------------------------------------------
-      const transferRes = await trx
-        .insertInto('transfers')
-        .values({
-          id: ids.transfer,
-          tracking_number: ids.trackingNumber, // e.g. TRF-4812
-          source_location_id: ids.warehouse,
-          destination_location_id: ids.store,
-          status: 'COMPLETED',
-          dispatched_at: nowIso,
-          received_at: nowIso,
-        })
-        .execute();
-
-      const transferItemsRes = await trx
-        .insertInto('transfer_items')
-        .values({
-          id: randomUUID(),
-          transfer_id: ids.transfer,
-          product_id: ids.product,
-          variant_id: ids.variantS,
-          quantity_requested: 10,
-          quantity_dispatched: 10,
-          quantity_received: 10,
-        })
-        .execute();
-
-      const transferLedgerRes = await trx
-        .insertInto('inventory_ledger')
+      const paymentsRes = await trx
+        .insertInto('payments')
         .values([
           {
-            id: randomUUID(),
-            location_id: ids.warehouse,
-            product_id: ids.product,
-            variant_id: ids.variantS,
-            transaction_type: 'TRANSFER_OUT',
-            quantity_change: -10,
-            reference_type: 'TRANSFER',
-            reference_id: ids.transfer,
+            id: ids.paymentCash,
+            order_id: ids.order1,
+            shift_id: ids.shift,
+            terminal_id: null,
+            payment_method_id: ids.methodCash,
+            channel: 'IN_PERSON',
+            status: 'CAPTURED',
+            amount: 150000,
+            tip_amount: 10000,
+            currency: 'IDR',
           },
           {
-            id: randomUUID(),
-            location_id: ids.store,
-            product_id: ids.product,
-            variant_id: ids.variantS,
-            transaction_type: 'TRANSFER_IN',
-            quantity_change: 10,
-            reference_type: 'TRANSFER',
-            reference_id: ids.transfer,
+            id: ids.paymentOnline,
+            order_id: ids.order2,
+            shift_id: null, // Online payments don't have shifts
+            terminal_id: null,
+            payment_method_id: ids.methodOnline,
+            channel: 'ONLINE',
+            status: 'PENDING', // Waiting for webhook
+            amount: 750000,
+            tip_amount: 0,
+            currency: 'IDR',
+          },
+        ])
+        .execute();
+
+      const ledgerRes = await trx
+        .insertInto('payment_ledger')
+        .values([
+          {
+            payment_id: ids.paymentCash,
+            entry_type: 'PAYMENT_CREATED',
+            amount: 150000,
+            currency: 'IDR',
+          },
+          {
+            payment_id: ids.paymentCash,
+            entry_type: 'CAPTURED',
+            amount: 150000,
+            currency: 'IDR',
+          },
+          {
+            payment_id: ids.paymentCash,
+            entry_type: 'TIP_ADDED',
+            amount: 10000,
+            currency: 'IDR',
+          },
+          {
+            payment_id: ids.paymentOnline,
+            entry_type: 'PAYMENT_CREATED',
+            amount: 750000,
+            currency: 'IDR',
           },
         ])
         .execute();
 
       const phase3Count =
-        Number(transferRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(transferItemsRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(transferLedgerRes[0]?.numInsertedOrUpdatedRows ?? 2);
+        Number(paymentsRes[0]?.numInsertedOrUpdatedRows ?? 2) +
+        Number(ledgerRes[0]?.numInsertedOrUpdatedRows ?? 4);
       totalRowsInserted += phase3Count;
       console.log(
-        `[4/5] Transfers: Processed ${ids.trackingNumber} (${phase3Count} records)`,
+        `[3/5] Transactions: Processed Cash Capture & Pending Online Checkout (${phase3Count} records)`,
       );
 
       // --------------------------------------------------------
-      // 5. STOCKTAKES (Reconciliation Variance Audit)
+      // 4. REFUNDS & DISPUTES (Phase 3 & 4)
       // --------------------------------------------------------
-      const stocktakeRes = await trx
-        .insertInto('stocktakes')
+      const refundRes = await trx
+        .insertInto('refunds')
         .values({
-          id: ids.stocktake,
-          location_id: ids.store,
+          id: randomUUID(),
+          payment_id: ids.paymentCash,
+          amount: 50000, // Partial refund
+          reason: 'Customer returned one item',
           status: 'COMPLETED',
-          completed_at: nowIso,
         })
         .execute();
 
-      const stocktakeItemsRes = await trx
-        .insertInto('stocktake_items')
+      const refundLedgerRes = await trx
+        .insertInto('payment_ledger')
         .values({
-          id: randomUUID(),
-          stocktake_id: ids.stocktake,
-          product_id: ids.product,
-          variant_id: ids.variantS,
-          expected_quantity: 10,
-          counted_quantity: 9,
-          variance: -1,
+          payment_id: ids.paymentCash,
+          entry_type: 'REFUNDED',
+          amount: -50000, // Negative for refunds
+          currency: 'IDR',
         })
         .execute();
 
-      const updateRes = await trx
-        .updateTable('inventory_levels')
-        .set({ quantity_on_hand: 9 })
-        .where('location_id', '=', ids.store)
-        .where('product_id', '=', ids.product)
-        .where('variant_id', '=', ids.variantS)
+      // Update the payment status to PARTIALLY_REFUNDED
+      await trx
+        .updateTable('payments')
+        .set({ status: 'PARTIALLY_REFUNDED' })
+        .where('id', '=', ids.paymentCash)
         .execute();
 
-      const shrinkageLedgerRes = await trx
-        .insertInto('inventory_ledger')
-        .values({
-          id: randomUUID(),
-          location_id: ids.store,
-          product_id: ids.product,
-          variant_id: ids.variantS,
-          transaction_type: 'SHRINKAGE',
-          quantity_change: -1,
-          reference_type: 'STOCKTAKE',
-          reference_id: ids.stocktake,
-        })
-        .execute();
-
-      const phase4Inserts =
-        Number(stocktakeRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(stocktakeItemsRes[0]?.numInsertedOrUpdatedRows ?? 1) +
-        Number(shrinkageLedgerRes[0]?.numInsertedOrUpdatedRows ?? 1);
-
-      const updatedRows = Number(updateRes[0]?.numUpdatedRows ?? 1);
-
-      totalRowsInserted += phase4Inserts;
-      totalRowsUpdated += updatedRows;
-
+      const phase4Count =
+        Number(refundRes[0]?.numInsertedOrUpdatedRows ?? 1) +
+        Number(refundLedgerRes[0]?.numInsertedOrUpdatedRows ?? 1);
+      totalRowsInserted += phase4Count;
       console.log(
-        `[5/5] Stocktakes: Recorded cycle count discrepancy (${phase4Inserts} inserts, ${updatedRows} level updated)`,
+        `[4/5] Post-Processing: Logged Partial Refund (${phase4Count} records)`,
+      );
+
+      // --------------------------------------------------------
+      // 5. SETTLEMENTS & FINANCES (Phase 5)
+      // --------------------------------------------------------
+      const settlementRes = await trx
+        .insertInto('settlements')
+        .values({
+          id: randomUUID(),
+          provider: 'XENDIT',
+          amount: 5000000,
+          status: 'PENDING',
+        })
+        .execute();
+
+      totalRowsInserted += Number(
+        settlementRes[0]?.numInsertedOrUpdatedRows ?? 1,
+      );
+      console.log(
+        `[5/5] Back-Office: Created pending bank settlement (1 record)`,
       );
 
       console.log('\n----------------------------------------');
-      console.log(`Batch Summary (Tag: #${batchSuffix}):`);
-      console.log(` - PO Reference      : ${ids.poNumber}`);
-      console.log(` - Tracking Ref      : ${ids.trackingNumber}`);
-      console.log(` - Total Inserted    : ${totalRowsInserted} rows`);
-      console.log(` - Total Updated     : ${totalRowsUpdated} rows`);
+      console.log(`Payment Seed Summary (Tag: #${batchSuffix}):`);
+      console.log(` - Total Records Inserted: ${totalRowsInserted} rows`);
+      console.log(` - Test Location ID      : ${ids.location}`);
+      console.log(` - Cashier Shift ID      : ${ids.shift}`);
       console.log('----------------------------------------');
     });
 

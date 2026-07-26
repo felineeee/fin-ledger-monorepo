@@ -9,34 +9,44 @@ export class SplitTenderService {
   constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
 
   // [x] POST /api/orders/:orderId/payments/split
-  async processSplitTender(orderId: string, dto: SplitPaymentDto, idempotencyKey?: string) {
+  async processSplitTender(
+    orderId: string,
+    dto: SplitPaymentDto,
+    idempotencyKey?: string,
+  ) {
     // 1. Validation constraints
     for (const item of dto.payments) {
       if (item.channel === 'IN_PERSON' && !item.shift_id) {
-        throw new ConflictException('shift_id is required for all IN_PERSON payment parts.');
+        throw new ConflictException(
+          'shift_id is required for all IN_PERSON payment parts.',
+        );
       }
     }
 
     // 2. Idempotency Check
     if (idempotencyKey) {
-      const existing = await this.db.selectFrom('payments')
+      const existing = await this.db
+        .selectFrom('payments')
         .selectAll()
         .where('idempotency_key', '=', idempotencyKey)
         .execute();
-      
+
       if (existing.length > 0) return existing;
     }
 
     // 3. Atomic Transaction
     return this.db.transaction().execute(async (trx) => {
-      const processedPayments = [];
+      const processedPayments: any[] = [];
 
       for (const [index, item] of dto.payments.entries()) {
         // Append an index to the idempotency key so each row has a unique identifier
-        const rowIdempotency = idempotencyKey ? `${idempotencyKey}-part-${index}` : null;
+        const rowIdempotency = idempotencyKey
+          ? `${idempotencyKey}-part-${index}`
+          : null;
 
         // Insert Payment (Assume split tenders submitted together are already CAPTURED/Finalized at the POS)
-        const payment = await trx.insertInto('payments')
+        const payment = await trx
+          .insertInto('payments')
           .values({
             order_id: orderId,
             payment_method_id: item.payment_method_id,
@@ -51,13 +61,16 @@ export class SplitTenderService {
           .executeTakeFirstOrThrow();
 
         // Write Immutable Ledger Event
-        await trx.insertInto('payment_ledger')
+        await trx
+          .insertInto('payment_ledger')
           .values({
             payment_id: payment.id,
             entry_type: 'CAPTURED',
             amount: item.amount,
             currency: payment.currency,
-            metadata: JSON.stringify(item.auth_code ? { auth_code: item.auth_code } : {}),
+            metadata: JSON.stringify(
+              item.auth_code ? { auth_code: item.auth_code } : {},
+            ),
           })
           .execute();
 
@@ -73,7 +86,8 @@ export class SplitTenderService {
     const orderTotal = query.order_total;
 
     // Sum all successful captures for this order
-    const result = await this.db.selectFrom('payments')
+    const result = await this.db
+      .selectFrom('payments')
       .select(({ fn }) => fn.sum('amount').as('total_paid'))
       .where('order_id', '=', orderId)
       .where('status', 'in', ['CAPTURED', 'AUTHORIZED']) // Include authorized funds that hold balance

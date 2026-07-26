@@ -1,10 +1,10 @@
 {
   "extends": "@fin-ledger/tsconfig/base.json",
-  "include": ["src/**/*", "../../packages/filters/src/interfaces"],
+  "include": ["src/**/*"],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*.js": ["./src/*.ts"],
+      "@/*": ["./src/*"]
     }
   }
 }
