@@ -1,5 +1,5 @@
 {
-  "name": "@fin-ledger/filters",
+  "name": "@fin-ledger/caches",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -8,10 +8,11 @@
     "build": "tsc",
     "clean": "rm -rf dist"
   },
-  "dependencies": {},
+  "dependencies": {
+    "redis": "^4.6.0"
+  },
   "devDependencies": {
     "@fin-ledger/tsconfig": "workspace:*",
-    "typescript": "7.0.2",
-    "@types/express": "^4.17.0"
+    "typescript": "7.0.2"
   }
 }

@@ -1,12 +1,9 @@
 {
-  "extends": "@fin-ledger/tsconfig/base.json",
-  "include": ["src/**/*"],
+  "extends": "@fin-ledger/tsconfig/nest.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "paths": {
-      "@/*.js": ["./src/*.ts"],
-      "@/*": ["./src/*"]
-    }
-  }
+    "baseUrl": "./"
+  },
+  "include": ["src/**/*"]
 }
