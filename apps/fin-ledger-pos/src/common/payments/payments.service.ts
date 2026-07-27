@@ -1,33 +1,43 @@
 // src/payments/payments.service.ts
-import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { DB } from '../../db/types.js';
 import { CreatePaymentDto, UpdatePaymentDto } from './dto/payments.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class PaymentsService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] POST /api/payments
   async createPayment(dto: CreatePaymentDto, idempotencyKey?: string) {
     // 1. Enforce physical constraints
     if (dto.channel === 'IN_PERSON' && !dto.shift_id) {
-      throw new ConflictException('shift_id is required for IN_PERSON payments.');
+      throw new ConflictException(
+        'shift_id is required for IN_PERSON payments.',
+      );
     }
 
     // 2. Check Idempotency Outside Transaction (Fast failure)
     if (idempotencyKey) {
-      const existing = await this.db.selectFrom('payments')
+      const existing = await this.db
+        .selectFrom('payments')
         .selectAll()
         .where('idempotency_key', '=', idempotencyKey)
         .executeTakeFirst();
-      
+
       if (existing) return existing;
     }
 
     // 3. Transactional Write to State & Ledger
     return this.db.transaction().execute(async (trx) => {
-      const payment = await trx.insertInto('payments')
+      const payment = await trx
+        .insertInto('payments')
         .values({
           order_id: dto.order_id,
           payment_method_id: dto.payment_method_id,
@@ -42,11 +52,12 @@ export class PaymentsService {
         .executeTakeFirstOrThrow();
 
       // Write Immutable Ledger Event (Positive expectation)
-      await trx.insertInto('payment_ledger')
+      await trx
+        .insertInto('payment_ledger')
         .values({
           payment_id: payment.id,
           entry_type: 'PAYMENT_CREATED',
-          amount: dto.amount, 
+          amount: dto.amount,
           currency: payment.currency,
         })
         .execute();
@@ -92,15 +103,18 @@ export class PaymentsService {
   // [x] PATCH /api/payments/:id
   async updatePayment(id: string, dto: UpdatePaymentDto) {
     const payment = await this.findOne(id);
-    
+
     // Core Business Rule: Only edit if PENDING
     if (payment.status !== 'PENDING') {
-      throw new ConflictException(`Cannot edit a payment in ${payment.status} state. Void and recreate instead.`);
+      throw new ConflictException(
+        `Cannot edit a payment in ${payment.status} state. Void and recreate instead.`,
+      );
     }
 
     const updatePayload: any = { updated_at: sql`NOW()` };
     if (dto.amount !== undefined) updatePayload.amount = dto.amount;
-    if (dto.payment_method_id !== undefined) updatePayload.payment_method_id = dto.payment_method_id;
+    if (dto.payment_method_id !== undefined)
+      updatePayload.payment_method_id = dto.payment_method_id;
 
     if (Object.keys(updatePayload).length === 1) return payment; // Only updated_at is present
 
@@ -115,29 +129,36 @@ export class PaymentsService {
   // [x] DELETE /api/payments/:id
   async cancelPayment(id: string) {
     return this.db.transaction().execute(async (trx) => {
-      const payment = await trx.selectFrom('payments')
+      const payment = await trx
+        .selectFrom('payments')
         .selectAll()
         .where('id', '=', id)
-        .executeTakeFirstOrThrow(() => new NotFoundException(`Payment ${id} not found`));
-      
+        .executeTakeFirstOrThrow(
+          () => new NotFoundException(`Payment ${id} not found`),
+        );
+
       // Can only void if money hasn't moved yet
       if (payment.status !== 'PENDING' && payment.status !== 'AUTHORIZED') {
-        throw new ConflictException(`Cannot cancel payment in ${payment.status} state. Issue a refund instead.`);
+        throw new ConflictException(
+          `Cannot cancel payment in ${payment.status} state. Issue a refund instead.`,
+        );
       }
 
       // 1. Set State to VOIDED
-      const updated = await trx.updateTable('payments')
+      const updated = await trx
+        .updateTable('payments')
         .set({ status: 'VOIDED', updated_at: sql`NOW()` })
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirstOrThrow();
 
       // 2. Balance the Ledger (Negative entry to zero out the PAYMENT_CREATED expectation)
-      await trx.insertInto('payment_ledger')
+      await trx
+        .insertInto('payment_ledger')
         .values({
           payment_id: id,
           entry_type: 'VOIDED',
-          amount: sql`${payment.amount} * -1`, 
+          amount: sql`${payment.amount} * -1`,
           currency: payment.currency,
         })
         .execute();

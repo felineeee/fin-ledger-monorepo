@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { DB } from '../../db/types.js';
 import {
   CreatePaymentMethodDto,
   UpdatePaymentMethodDto,
 } from './dto/payment-method.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 @Injectable()
 export class PaymentMethodsService {
-  constructor(private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] GET /api/payment-methods
   async findAll() {

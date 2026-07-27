@@ -3,9 +3,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { LedgerModule } from './common/ledger/ledger.module.js';
 import { ConfigModule } from '@nestjs/config';
-import { validateEnv } from '@fin-ledger/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { DatabaseModule } from '@fin-ledger/database';
 import { PaymentMethodsModule } from './common/payment-methods/payment-methods.module.js';
 import { PaymentsModule } from './common/payments/payments.module.js';
 import { ShiftsModule } from './common/shifts/shifts.module.js';
@@ -17,6 +15,9 @@ import { SettlementsModule } from './common/finance/settlements/settlements.modu
 import { FeesModule } from './common/finance/fees/fees.module.js';
 import { ReportsModule } from './common/finance/reports/reports.module.js';
 
+import { DatabaseModule } from '@fin-ledger/databases';
+import { validateEnv } from '@fin-ledger/configs';
+import { RedisModule } from '@fin-ledger/caches';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -36,6 +37,7 @@ import { ReportsModule } from './common/finance/reports/reports.module.js';
     ShiftsModule,
     PaymentsModule,
     PaymentMethodsModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

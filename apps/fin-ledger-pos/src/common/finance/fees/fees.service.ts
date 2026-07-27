@@ -5,10 +5,11 @@ import {
   CreateFeeScheduleDto,
   UpdateFeeScheduleDto,
 } from '../dto/finance.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class FeesService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   async getFeeSchedules() {
     return this.db

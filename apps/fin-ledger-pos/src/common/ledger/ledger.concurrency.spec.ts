@@ -3,7 +3,7 @@ import { Pool, PoolClient } from 'pg';
 import { AppModule } from '../../app.module.js';
 import { LedgerService } from '../../common/ledger/ledger.service.js';
 import * as crypto from 'crypto';
-import { PG_POOL } from '@fin-ledger/database';
+import { PG_POOL } from '@fin-ledger/databases';
 
 describe('Ledger Engine Adversarial Concurrency Test', () => {
   let ledgerService: LedgerService;

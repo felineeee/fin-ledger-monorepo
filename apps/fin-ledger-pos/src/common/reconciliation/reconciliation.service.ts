@@ -1,16 +1,29 @@
 // src/reconciliation/reconciliation.service.ts
-import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  Inject,
+} from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { DB } from './../../db/types.js';
-import { LedgerQueryDto, DailyReconciliationQueryDto, DiscrepancyQueryDto } from './dto/reconciliation.dto.js';
+import {
+  LedgerQueryDto,
+  DailyReconciliationQueryDto,
+  DiscrepancyQueryDto,
+} from './dto/reconciliation.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class ReconciliationService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] GET /api/payments/ledger
   async getLedgerRecords(query: LedgerQueryDto) {
-    let q = this.db.selectFrom('payment_ledger').selectAll().orderBy('created_at', 'desc');
+    let q = this.db
+      .selectFrom('payment_ledger')
+      .selectAll()
+      .orderBy('created_at', 'desc');
 
     if (query.payment_id) q = q.where('payment_id', '=', query.payment_id);
     if (query.entry_type) q = q.where('entry_type', '=', query.entry_type);
@@ -20,7 +33,8 @@ export class ReconciliationService {
 
   // [x] GET /api/payments/ledger/:id
   async getLedgerRecordById(id: string) {
-    const record = await this.db.selectFrom('payment_ledger')
+    const record = await this.db
+      .selectFrom('payment_ledger')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
@@ -30,12 +44,16 @@ export class ReconciliationService {
   }
 
   // [x] GET /api/locations/:id/reconciliation/daily
-  async getDailyReconciliation(locationId: string, query: DailyReconciliationQueryDto) {
+  async getDailyReconciliation(
+    locationId: string,
+    query: DailyReconciliationQueryDto,
+  ) {
     // Default to current date if none provided
     const targetDate = query.date || new Date().toISOString().split('T')[0];
 
     // Aggregate Shift Data (Cash basis)
-    const shiftsAgg = await this.db.selectFrom('shifts')
+    const shiftsAgg = await this.db
+      .selectFrom('shifts')
       .select([
         ({ fn }) => fn.sum('starting_float').as('total_starting_float'),
         ({ fn }) => fn.sum('expected_cash').as('total_expected_cash'),
@@ -48,7 +66,8 @@ export class ReconciliationService {
       .executeTakeFirst();
 
     // Fetch individual shifts to include in the breakdown
-    const shifts = await this.db.selectFrom('shifts')
+    const shifts = await this.db
+      .selectFrom('shifts')
       .selectAll()
       .where('location_id', '=', locationId)
       .where(sql`DATE(opened_at)`, '=', targetDate)
@@ -70,13 +89,13 @@ export class ReconciliationService {
 
   // [x] GET /api/reconciliation/discrepancies
   async getDiscrepancies(query: DiscrepancyQueryDto) {
-    let q = this.db.selectFrom('shifts')
+    let q = this.db
+      .selectFrom('shifts')
       .selectAll()
       // Discrepancy defined as a non-zero variance OR an abandoned/force-closed shift (null variance)
-      .where((eb) => eb.or([
-        eb('variance', '!=', '0'),
-        eb('variance', 'is', null)
-      ]))
+      .where((eb) =>
+        eb.or([eb('variance', '!=', '0'), eb('variance', 'is', null)]),
+      )
       // Only check closed or force_closed shifts
       .where('status', 'in', ['CLOSED', 'FORCE_CLOSED'])
       .orderBy('closed_at', 'desc');
@@ -92,12 +111,16 @@ export class ReconciliationService {
   }
 
   // [x] POST /api/locations/:id/reconciliation/close
-  async closeDailyReconciliation(locationId: string, query: DailyReconciliationQueryDto) {
+  async closeDailyReconciliation(
+    locationId: string,
+    query: DailyReconciliationQueryDto,
+  ) {
     const targetDate = query.date || new Date().toISOString().split('T')[0];
 
     return this.db.transaction().execute(async (trx) => {
       // 1. Find all OPEN shifts for this location on this date
-      const openShifts = await trx.selectFrom('shifts')
+      const openShifts = await trx
+        .selectFrom('shifts')
         .select('id')
         .where('location_id', '=', locationId)
         .where('status', '=', 'OPEN')
@@ -107,17 +130,19 @@ export class ReconciliationService {
       // 2. Force close any abandoned shifts to secure the day's books
       if (openShifts.length > 0) {
         const openShiftIds = openShifts.map((s) => s.id);
-        await trx.updateTable('shifts')
-          .set({ 
-            status: 'FORCE_CLOSED', 
-            closed_at: sql`NOW()` 
+        await trx
+          .updateTable('shifts')
+          .set({
+            status: 'FORCE_CLOSED',
+            closed_at: sql`NOW()`,
           })
           .where('id', 'in', openShiftIds)
           .execute();
       }
 
       // 3. Generate the final locked daily report (using the GET method logic within transaction)
-      const shiftsAgg = await trx.selectFrom('shifts')
+      const shiftsAgg = await trx
+        .selectFrom('shifts')
         .select([
           ({ fn }) => fn.sum('starting_float').as('total_starting_float'),
           ({ fn }) => fn.sum('expected_cash').as('total_expected_cash'),
@@ -137,7 +162,7 @@ export class ReconciliationService {
           date: targetDate,
           total_shifts: Number(shiftsAgg?.total_shifts || 0),
           net_variance: Number(shiftsAgg?.net_variance || 0),
-        }
+        },
       };
     });
   }

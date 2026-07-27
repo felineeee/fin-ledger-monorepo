@@ -11,6 +11,6 @@
   "dependencies": {},
   "devDependencies": {
     "@fin-ledger/tsconfig": "workspace:*",
-    "typescript": "7.0.2"
+    "typescript": "^5.0.0"
   }
 }

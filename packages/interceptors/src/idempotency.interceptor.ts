@@ -6,7 +6,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import { REDIS_CLIENT } from '@fin-ledger/cache';
+import { REDIS_CLIENT } from '@fin-ledger/caches';
 import type { RedisClientType } from '@redis/client';
 
 import { Observable, of, from } from 'rxjs';

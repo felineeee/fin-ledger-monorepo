@@ -9,11 +9,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "rxjs": "^7.8.0",
-    "@fin-ledger/caches": "workspace:*"
+    "@fin-ledger/caches": "workspace:*",
+    "@redis/client": "^6.1.0",
+    "rxjs": "^7.8.0"
   },
   "devDependencies": {
     "@fin-ledger/tsconfig": "workspace:*",
-    "typescript": "7.0.2"
+    "typescript": "^5.0.0"
   }
 }

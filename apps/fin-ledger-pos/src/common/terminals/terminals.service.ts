@@ -1,17 +1,28 @@
 // src/terminals/terminals.service.ts
-import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { DB } from '../../db/types.js';
-import { CreateTerminalDto, UpdateTerminalDto, TerminalQueryDto } from './dto/terminals.dto.js';
+import {
+  CreateTerminalDto,
+  UpdateTerminalDto,
+  TerminalQueryDto,
+} from './dto/terminals.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class TerminalsService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] POST /api/terminals
   async create(dto: CreateTerminalDto) {
     try {
-      return await this.db.insertInto('terminals')
+      return await this.db
+        .insertInto('terminals')
         .values({
           location_id: dto.location_id,
           name: dto.name,
@@ -23,7 +34,9 @@ export class TerminalsService {
     } catch (error: any) {
       // Catch unique violation for serial_number
       if (error.code === '23505') {
-        throw new ConflictException('A terminal with this serial number is already registered.');
+        throw new ConflictException(
+          'A terminal with this serial number is already registered.',
+        );
       }
       throw error;
     }
@@ -31,8 +44,11 @@ export class TerminalsService {
 
   // [x] GET /api/terminals
   async findAll(query: TerminalQueryDto) {
-    let q = this.db.selectFrom('terminals').selectAll().orderBy('created_at', 'desc');
-    
+    let q = this.db
+      .selectFrom('terminals')
+      .selectAll()
+      .orderBy('created_at', 'desc');
+
     if (query.location_id) {
       q = q.where('location_id', '=', query.location_id);
     }
@@ -42,7 +58,8 @@ export class TerminalsService {
 
   // [x] GET /api/terminals/:id
   async findOne(id: string) {
-    const terminal = await this.db.selectFrom('terminals')
+    const terminal = await this.db
+      .selectFrom('terminals')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
@@ -59,9 +76,11 @@ export class TerminalsService {
     await this.findOne(id); // Ensure exists
 
     const updatePayload: any = {};
-    if (dto.location_id !== undefined) updatePayload.location_id = dto.location_id;
+    if (dto.location_id !== undefined)
+      updatePayload.location_id = dto.location_id;
     if (dto.name !== undefined) updatePayload.name = dto.name;
-    if (dto.serial_number !== undefined) updatePayload.serial_number = dto.serial_number;
+    if (dto.serial_number !== undefined)
+      updatePayload.serial_number = dto.serial_number;
     if (dto.status !== undefined) updatePayload.status = dto.status;
 
     if (Object.keys(updatePayload).length === 0) {
@@ -69,14 +88,17 @@ export class TerminalsService {
     }
 
     try {
-      return await this.db.updateTable('terminals')
+      return await this.db
+        .updateTable('terminals')
         .set(updatePayload)
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirstOrThrow();
     } catch (error: any) {
       if (error.code === '23505') {
-        throw new ConflictException('Another terminal is already registered with this serial number.');
+        throw new ConflictException(
+          'Another terminal is already registered with this serial number.',
+        );
       }
       throw error;
     }
@@ -87,10 +109,12 @@ export class TerminalsService {
     const terminal = await this.findOne(id);
 
     if (terminal.status !== 'ACTIVE') {
-      throw new ConflictException(`Cannot ping terminal because its status is ${terminal.status}`);
+      throw new ConflictException(
+        `Cannot ping terminal because its status is ${terminal.status}`,
+      );
     }
 
-    // In a real-world scenario, this is where you would trigger an API call to Stripe/Adyen 
+    // In a real-world scenario, this is where you would trigger an API call to Stripe/Adyen
     // to check the hardware connection. For the boilerplate, we return a simulated success.
     return {
       terminal_id: terminal.id,

@@ -9,10 +9,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@nestjs/config": "^4.0.4",
     "redis": "^4.6.0"
   },
   "devDependencies": {
     "@fin-ledger/tsconfig": "workspace:*",
-    "typescript": "7.0.2"
+    "typescript": "^5.0.0"
   }
 }

@@ -1,1 +1,1 @@
-export * from './pii-scrubber.logger';
+export * from './pii-scrubber.logger.js';

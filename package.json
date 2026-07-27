@@ -13,7 +13,12 @@
   },
   "devDependencies": {
     "turbo": "latest",
-    "typescript": "^5.0.0"
+    "typescript": "^6.0.3"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "dependencies": {
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28"
+  }
 }

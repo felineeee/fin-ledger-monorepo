@@ -6,10 +6,11 @@ import {
 } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { DB } from '../../../db/types.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class SettlementsService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] GET /api/settlements
   async getSettlements() {

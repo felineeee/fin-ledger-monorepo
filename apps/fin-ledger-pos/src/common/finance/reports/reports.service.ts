@@ -3,10 +3,11 @@ import { Injectable, Inject } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { DB } from '../../../db/types.js';
 import { ReportQueryDto } from '../dto/reports.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class ReportsService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] GET /api/locations/:id/reports/payment-methods-breakdown
   async getPaymentMethodBreakdown(locationId: string, query: ReportQueryDto) {

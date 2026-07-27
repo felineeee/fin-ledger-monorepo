@@ -3,10 +3,11 @@ import { Injectable, ConflictException, Inject } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { DB } from '../../../db/types.js';
 import { SplitPaymentDto, OrderBalanceQueryDto } from '../dto/split.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class SplitTenderService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] POST /api/orders/:orderId/payments/split
   async processSplitTender(

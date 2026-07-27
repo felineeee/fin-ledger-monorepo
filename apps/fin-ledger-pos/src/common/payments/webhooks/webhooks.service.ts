@@ -1,21 +1,31 @@
 // src/payments/webhooks.service.ts
-import { Injectable, Headers, UnauthorizedException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  Headers,
+  UnauthorizedException,
+  Inject,
+} from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { DB } from '../../../db/types.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class WebhooksService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // Helper to fetch the Xendit Webhook Secret from our config
   private async getWebhookSecret() {
-    const method = await this.db.selectFrom('payment_methods')
+    const method = await this.db
+      .selectFrom('payment_methods')
       .selectAll()
       .where('name', '=', 'Xendit Gateway')
       .executeTakeFirst();
-    
+
     if (!method) return null;
-    const config = typeof method.config === 'string' ? JSON.parse(method.config) : method.config;
+    const config =
+      typeof method.config === 'string'
+        ? JSON.parse(method.config)
+        : method.config;
     return config.webhook_secret;
   }
 
@@ -32,13 +42,17 @@ export class WebhooksService {
 
     return this.db.transaction().execute(async (trx) => {
       // 2. Idempotency Check: Have we processed this specific webhook event before?
-      const existingEvent = await trx.selectFrom('webhook_events')
-        .selectAll().where('event_id', '=', eventId).executeTakeFirst();
-      
+      const existingEvent = await trx
+        .selectFrom('webhook_events')
+        .selectAll()
+        .where('event_id', '=', eventId)
+        .executeTakeFirst();
+
       if (existingEvent) return { success: true, message: 'Already processed' };
 
       // 3. Log the Webhook
-      await trx.insertInto('webhook_events')
+      await trx
+        .insertInto('webhook_events')
         .values({
           event_id: eventId,
           payment_id: externalId || null,
@@ -49,32 +63,46 @@ export class WebhooksService {
 
       // 4. Process Payment State based on Xendit Status
       if (externalId && payload.status === 'PAID') {
-        const payment = await trx.selectFrom('payments').selectAll().where('id', '=', externalId).executeTakeFirst();
-        
+        const payment = await trx
+          .selectFrom('payments')
+          .selectAll()
+          .where('id', '=', externalId)
+          .executeTakeFirst();
+
         if (payment && payment.status === 'PENDING') {
           // Update State
-          await trx.updateTable('payments')
+          await trx
+            .updateTable('payments')
             .set({ status: 'CAPTURED', updated_at: sql`NOW()` })
             .where('id', '=', externalId)
             .execute();
 
           // Write Realization to Ledger
-          await trx.insertInto('payment_ledger')
+          await trx
+            .insertInto('payment_ledger')
             .values({
               payment_id: externalId,
               entry_type: 'CAPTURED',
               amount: payment.amount,
               currency: payment.currency,
-              metadata: JSON.stringify({ xendit_invoice_id: eventId, channel: payload.payment_method }),
+              metadata: JSON.stringify({
+                xendit_invoice_id: eventId,
+                channel: payload.payment_method,
+              }),
             })
             .execute();
         }
       }
 
       if (externalId && payload.status === 'EXPIRED') {
-        const payment = await trx.selectFrom('payments').selectAll().where('id', '=', externalId).executeTakeFirst();
+        const payment = await trx
+          .selectFrom('payments')
+          .selectAll()
+          .where('id', '=', externalId)
+          .executeTakeFirst();
         if (payment && payment.status === 'PENDING') {
-          await trx.updateTable('payments')
+          await trx
+            .updateTable('payments')
             .set({ status: 'FAILED', updated_at: sql`NOW()` })
             .where('id', '=', externalId)
             .execute();
@@ -87,7 +115,8 @@ export class WebhooksService {
 
   // [x] GET /api/webhooks/events
   async getWebhookEvents() {
-    return this.db.selectFrom('webhook_events')
+    return this.db
+      .selectFrom('webhook_events')
       .selectAll()
       .orderBy('created_at', 'desc')
       .execute();
@@ -95,7 +124,8 @@ export class WebhooksService {
 
   // [x] GET /api/webhooks/events/:id
   async getWebhookEventDetails(id: string) {
-    return this.db.selectFrom('webhook_events')
+    return this.db
+      .selectFrom('webhook_events')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirstOrThrow();

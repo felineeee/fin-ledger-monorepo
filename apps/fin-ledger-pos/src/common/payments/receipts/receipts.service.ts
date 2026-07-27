@@ -3,15 +3,21 @@ import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { DB } from '../../../db/types.js';
 import { ResendReceiptDto } from '../dto/receipts.dto.js';
+import { KYSELY_DB } from '@fin-ledger/databases';
 
 @Injectable()
 export class ReceiptsService {
-  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<DB>) {}
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] GET /api/payments/:id/receipt
   async getReceipt(id: string) {
-    const payment = await this.db.selectFrom('payments')
-      .innerJoin('payment_methods', 'payments.payment_method_id', 'payment_methods.id')
+    const payment = await this.db
+      .selectFrom('payments')
+      .innerJoin(
+        'payment_methods',
+        'payments.payment_method_id',
+        'payment_methods.id',
+      )
       .leftJoin('shifts', 'payments.shift_id', 'shifts.id')
       .leftJoin('terminals', 'payments.terminal_id', 'terminals.id')
       .select([
@@ -74,7 +80,7 @@ export class ReceiptsService {
 
     // 2. Mock external notification integration (e.g., SendGrid, Twilio)
     // In production, you would enqueue a background job (e.g., BullMQ) passing the receiptPayload here.
-    
+
     return {
       success: true,
       message: `Receipt successfully queued for delivery via ${dto.method}.`,
