@@ -18,6 +18,7 @@ import { ReportsModule } from './common/finance/reports/reports.module.js';
 import { DatabaseModule } from '@fin-ledger/databases';
 import { validateEnv } from '@fin-ledger/configs';
 import { RedisModule } from '@fin-ledger/caches';
+import { HealthModule } from './common/health/health.module.js';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -38,6 +39,7 @@ import { RedisModule } from '@fin-ledger/caches';
     PaymentsModule,
     PaymentMethodsModule,
     RedisModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

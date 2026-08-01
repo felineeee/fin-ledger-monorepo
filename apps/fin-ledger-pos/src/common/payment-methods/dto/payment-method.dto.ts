@@ -9,6 +9,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { PaymentMethodType } from '../../../db/types.js';
 
+/* @TODO need planned utilization of
+ * is_active
+ * config
+ */
 export class CreatePaymentMethodDto {
   @ApiProperty({
     example: 'Main Register Cash',
@@ -19,10 +23,10 @@ export class CreatePaymentMethodDto {
   name!: string;
 
   @ApiProperty({
-    enum: ['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT'],
+    enum: ['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT', `QRIS`],
     example: 'CASH',
   })
-  @IsEnum(['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT'])
+  @IsEnum(['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT', `QRIS`])
   @IsNotEmpty()
   type!: PaymentMethodType;
 
@@ -49,9 +53,11 @@ export class UpdatePaymentMethodDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ enum: ['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT'] })
+  @ApiPropertyOptional({
+    enum: ['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT', 'QRIS'],
+  })
   @IsOptional()
-  @IsEnum(['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT'])
+  @IsEnum(['CASH', 'CARD', 'WALLET', 'VIRTUAL_ACCOUNT', 'QRIS'])
   type?: PaymentMethodType;
 
   @ApiPropertyOptional({
