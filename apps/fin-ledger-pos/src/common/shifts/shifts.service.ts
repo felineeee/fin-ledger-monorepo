@@ -129,7 +129,7 @@ export class ShiftsService {
       if (shift.status !== 'OPEN')
         throw new ConflictException(`Shift is already ${shift.status}.`);
 
-      const startingFloat = Number(shift.starting_float);
+      const startingFloat = Number(shift.starting_float || 0);
 
       // 1. Sum all mid-shift cash drops
       const dropsAgg = await trx
@@ -194,5 +194,105 @@ export class ShiftsService {
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirstOrThrow();
+  }
+
+  // [ ] POST /api/shifts/audit
+  async auditShift(
+    shiftId: string,
+    actualCashCounted: number,
+    auditedBy: string,
+  ) {
+    return this.db.transaction().execute(async (trx) => {
+      // 1. Fetch the FORCE_CLOSED shift
+      const shift = await trx
+        .selectFrom('shifts')
+        .selectAll()
+        .where('id', '=', shiftId)
+        .executeTakeFirst();
+
+      if (!shift) throw new NotFoundException('Shift not found.');
+      if (shift.status !== 'FORCE_CLOSED') {
+        throw new ConflictException(
+          `Only FORCE_CLOSED shifts can be audited. Shift status is ${shift.status}.`,
+        );
+      }
+
+      const startingFloat = Number(shift.starting_float || 0);
+
+      // 2. Re-calculate expected cash up to the moment it was force closed
+      const dropsAgg = await trx
+        .selectFrom('cash_drops')
+        .select(({ fn }) => fn.sum('amount').as('total_drops'))
+        .where('shift_id', '=', shiftId)
+        .executeTakeFirst();
+      const totalDrops = Number(dropsAgg?.total_drops || 0);
+
+      const salesAgg = await trx
+        .selectFrom('payments')
+        .innerJoin(
+          'payment_methods',
+          'payments.payment_method_id',
+          'payment_methods.id',
+        )
+        .select(({ fn }) => fn.sum('payments.amount').as('total_cash_sales'))
+        .where('payments.shift_id', '=', shiftId)
+        .where('payments.status', '=', 'CAPTURED')
+        .where('payment_methods.type', '=', 'CASH')
+        .executeTakeFirst();
+      const totalCashSales = Number(salesAgg?.total_cash_sales || 0);
+
+      const expectedCash = startingFloat + totalCashSales - totalDrops;
+
+      const variance = actualCashCounted - expectedCash;
+
+      // 3. Update the shift record to 'AUDITED' or 'CLOSED' with real numbers
+      const updatedShift = await trx
+        .updateTable('shifts')
+        .set({
+          status: 'CLOSED', // Or 'AUDITED' if you have that status enum
+          ending_cash_expected: String(expectedCash),
+          ending_cash_actual: String(actualCashCounted),
+          variance: variance,
+        })
+        .where('id', '=', shiftId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await this.postShiftToLedger(trx, {
+        shiftId: shift.id,
+        cashierId: shift.cashier_id,
+        cashSales: totalCashSales,
+        actualCash: actualCashCounted,
+        variance: variance,
+        auditedBy: auditedBy,
+      });
+
+      return updatedShift;
+    });
+  }
+  private async postShiftToLedger(
+    trx: any,
+    data: {
+      shiftId: string;
+      cashierId: string;
+      cashSales: number;
+      actualCash: number;
+      variance: number;
+      auditedBy: string;
+    },
+  ) {
+    // Example Double-Entry Accounting Journal Entry:
+    // 1. Credit: Sales Revenue (Total Cash Sales expected)
+    // 2. Debit: Cash Account (Actual cash handed over to back office)
+    // 3. Debit/Credit: Cash Over/Short Account (Variance loss or gain)
+
+    await trx
+      .insertInto('journal_entries')
+      .values({
+        reference_id: data.shiftId,
+        description: `Shift Close Audit for Cashier ${data.cashierId}`,
+        created_by: data.auditedBy,
+      })
+      .execute();
   }
 }
