@@ -34,11 +34,11 @@ export class ReportsController {
     status: 200,
     description: 'Returns volume and count grouped by method',
   })
-  async getPaymentMethodBreakdown(
+  async getPaymentMethodsBreakdown(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: ReportQueryDto,
   ) {
-    return this.reportsService.getPaymentMethodBreakdown(id, query);
+    return this.reportsService.getPaymentMethodsBreakdown(id, query);
   }
 
   @Get('locations/:id/reports/failed-payments')
@@ -52,7 +52,7 @@ export class ReportsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: ReportQueryDto,
   ) {
-    return this.reportsService.getFailedPaymentsReport(id, query);
+    return this.reportsService.getFailedPayments(id, query);
   }
 
   @Get('reports/revenue/company-wide')

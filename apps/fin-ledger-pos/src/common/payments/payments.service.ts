@@ -9,11 +9,16 @@ import { Kysely, sql } from 'kysely';
 import { DB } from '../../db/types.js';
 import { CreatePaymentDto, UpdatePaymentDto } from './dto/payments.dto.js';
 import { KYSELY_DB } from '@fin-ledger/databases';
+import { FeesService } from '../finance/fees/fees.service.js';
 
 @Injectable()
 export class PaymentsService {
-  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
+  constructor(
+    @Inject(KYSELY_DB) private readonly db: Kysely<DB>,
+    private readonly feesService: FeesService,
+  ) {}
 
+  // Obsolete before fees service changes
   // [x] POST /api/payments
   async createPayment(dto: CreatePaymentDto, idempotencyKey?: string) {
     // 1. Enforce physical constraints
@@ -63,6 +68,93 @@ export class PaymentsService {
         .execute();
 
       return payment;
+    });
+  }
+
+  // [x] POST /api/payments/:id/capture-cash
+  async captureCash(paymentId: string) {
+    return this.db.transaction().execute(async (trx) => {
+      // 1. Lock the row
+      const payment = await trx
+        .selectFrom('payments')
+        .selectAll()
+        .where('id', '=', paymentId)
+        .forUpdate()
+        .executeTakeFirst();
+
+      if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.status !== 'PENDING') {
+        throw new ConflictException(
+          `Cannot capture a payment that is ${payment.status}`,
+        );
+      }
+
+      // 2. Snapshot the Fees (this internally updates the payments table)
+      await this.feesService.calculateAndSnapshotFees(payment.id, trx);
+
+      // 3. Mark as Captured
+      await trx
+        .updateTable('payments')
+        .set({ status: 'CAPTURED', updated_at: new Date().toISOString() })
+        .where('id', '=', payment.id)
+        .execute();
+
+      // 4. Write Immutable Ledger Event (matching your exact style)
+      await trx
+        .insertInto('payment_ledger')
+        .values({
+          payment_id: payment.id,
+          entry_type: 'CAPTURED',
+          amount: payment.amount,
+          currency: payment.currency,
+          metadata: JSON.stringify({ method: 'CASH' }),
+        })
+        .execute();
+
+      return { success: true, payment_id: payment.id };
+    });
+  }
+
+  // [x] POST /api/payments/:id/capture-card-present
+  async captureCardPresent(paymentId: string) {
+    return this.db.transaction().execute(async (trx) => {
+      const payment = await trx
+        .selectFrom('payments')
+        .selectAll()
+        .where('id', '=', paymentId)
+        .forUpdate()
+        .executeTakeFirst();
+
+      if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.status !== 'PENDING') {
+        throw new ConflictException(
+          `Cannot capture a payment that is ${payment.status}`,
+        );
+      }
+
+      // 2. Snapshot the Fees for the EDC terminal processing
+      await this.feesService.calculateAndSnapshotFees(payment.id, trx);
+
+      // 3. Mark as Captured
+      await trx
+        .updateTable('payments')
+        .set({ status: 'CAPTURED', updated_at: new Date().toISOString() })
+        .where('id', '=', payment.id)
+        .execute();
+
+      // 4. Write Immutable Ledger Event
+      await trx
+        .insertInto('payment_ledger')
+        .values({
+          payment_id: payment.id,
+          entry_type: 'CAPTURED',
+          amount: payment.amount,
+          currency: payment.currency,
+          metadata: JSON.stringify({ method: 'CARD_PRESENT' }),
+        })
+        .execute();
+
+      return { success: true, payment_id: payment.id };
     });
   }
 

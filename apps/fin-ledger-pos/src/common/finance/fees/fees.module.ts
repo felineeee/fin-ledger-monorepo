@@ -5,5 +5,6 @@ import { FeesController } from './fees.controller.js';
 @Module({
   controllers: [FeesController],
   providers: [FeesService],
+  exports: [FeesService],
 })
 export class FeesModule {}

@@ -1,4 +1,7 @@
 import {
+  Get,
+  Query,
+  Param,
   Body,
   Controller,
   HttpCode,
@@ -6,13 +9,20 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
+import { ApiOperation, ApiParam } from '@nestjs/swagger';
 import { LedgerService } from './ledger.service.js';
 import { AuthGuard } from '@fin-ledger/guards';
 import { CurrentUser } from '@fin-ledger/decorators';
 import { TransferRequestDto } from './dto/transfer-request.dto.js';
 import { IdempotencyInterceptor } from '@fin-ledger/interceptors';
-@Controller('ledger')
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { QueryLedgerDto } from './dto/query-ledger.dto.js';
+
+@ApiTags('payments-ledger')
+@ApiBearerAuth()
+@Controller('/api/payments/ledger')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
 
@@ -51,5 +61,20 @@ export class LedgerController {
       body.type,
       body.currency || 'USD',
     );
+  }
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List immutable transaction ledger records' })
+  async getLedgerEntries(@Query() query: QueryLedgerDto) {
+    return this.ledgerService.getLedgerEntries(query);
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get single ledger entry details' })
+  @ApiParam({ name: 'id', description: 'Ledger Entry UUID' })
+  async getLedgerEntryById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ledgerService.getLedgerEntryById(id);
   }
 }

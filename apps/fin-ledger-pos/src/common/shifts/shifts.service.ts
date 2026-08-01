@@ -163,8 +163,8 @@ export class ShiftsService {
         .set({
           status: 'CLOSED',
           closed_at: sql`NOW()`,
-          expected_cash: expectedCash,
-          actual_cash: dto.actual_cash,
+          ending_cash_expected: String(expectedCash),
+          ending_cash_actual: String(dto.actual_cash),
           variance: variance,
         })
         .where('id', '=', dto.shift_id)

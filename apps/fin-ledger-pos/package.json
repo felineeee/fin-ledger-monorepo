@@ -14,6 +14,7 @@
     "db:fresh": "docker compose down -v && docker compose up -d && sleep 2 && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
+    "@fin-ledger/caches": "workspace:*",
     "@fin-ledger/configs": "workspace:*",
     "@fin-ledger/databases": "workspace:*",
     "@fin-ledger/decorators": "workspace:*",
@@ -21,7 +22,6 @@
     "@fin-ledger/guards": "workspace:*",
     "@fin-ledger/interceptors": "workspace:*",
     "@fin-ledger/loggers": "workspace:*",
-    "@fin-ledger/caches": "workspace:*",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.28",
@@ -32,7 +32,8 @@
     "class-validator": "^0.14.0",
     "dotenv": "^16.3.1",
     "kysely": "0.29.4",
-    "pg": "^8.11.0"
+    "pg": "^8.11.0",
+    "xendit-node": "^7.0.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.5.0",
@@ -45,6 +46,7 @@
     "@types/pg": "^8.11.0",
     "@types/redlock": "^4.0.8",
     "@types/supertest": "^7.2.1",
+    "jest": "^30.4.2",
     "kysely-codegen": "^0.11.0",
     "supertest": "^7.2.2",
     "tsx": "^4.7.0",

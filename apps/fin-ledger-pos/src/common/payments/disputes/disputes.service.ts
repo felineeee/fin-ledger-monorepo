@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
   Inject,
 } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
@@ -33,6 +34,7 @@ export class DisputesService {
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
+
     if (!dispute) throw new NotFoundException(`Dispute ${id} not found.`);
     return dispute;
   }
@@ -47,16 +49,22 @@ export class DisputesService {
       );
     }
 
-    return this.db
-      .updateTable('disputes')
-      .set({
-        evidence_text: dto.evidence_text,
-        evidence_url: dto.evidence_url ?? null,
-        updated_at: sql`NOW()`,
-      })
-      .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    try {
+      return await this.db
+        .updateTable('disputes')
+        .set({
+          evidence_text: dto.evidence_text,
+          evidence_url: dto.evidence_url ?? null,
+          updated_at: sql`NOW()`,
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to submit dispute evidence: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 
   // [x] PATCH /api/disputes/:id/status
@@ -66,7 +74,9 @@ export class DisputesService {
         .selectFrom('disputes')
         .selectAll()
         .where('id', '=', id)
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+
+      if (!dispute) throw new NotFoundException(`Dispute ${id} not found.`);
 
       const updated = await trx
         .updateTable('disputes')
@@ -75,33 +85,35 @@ export class DisputesService {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      // If the merchant lost the chargeback, we must reverse the captured funds in the ledger
+      // If the merchant lost the chargeback, reverse the captured funds in the ledger & update payment
       if (dto.status === 'LOST') {
         const payment = await trx
           .selectFrom('payments')
           .selectAll()
           .where('id', '=', dispute.payment_id)
-          .executeTakeFirstOrThrow();
+          .executeTakeFirst();
 
-        await trx
-          .updateTable('payments')
-          .set({ status: 'VOIDED', updated_at: sql`NOW()` })
-          .where('id', '=', payment.id)
-          .execute();
+        if (payment) {
+          await trx
+            .updateTable('payments')
+            .set({ status: 'VOIDED', updated_at: sql`NOW()` })
+            .where('id', '=', payment.id)
+            .execute();
 
-        await trx
-          .insertInto('payment_ledger')
-          .values({
-            payment_id: payment.id,
-            entry_type: 'VOIDED',
-            amount: sql`${dispute.amount} * -1`,
-            currency: payment.currency,
-            metadata: JSON.stringify({
-              reason: 'CHARGEBACK_LOST',
-              dispute_id: dispute.id,
-            }),
-          })
-          .execute();
+          await trx
+            .insertInto('payment_ledger')
+            .values({
+              payment_id: payment.id,
+              entry_type: 'VOIDED',
+              amount: sql`${dispute.amount} * -1`,
+              currency: payment.currency || 'IDR',
+              metadata: JSON.stringify({
+                reason: 'CHARGEBACK_LOST',
+                dispute_id: dispute.id,
+              }),
+            })
+            .execute();
+        }
       }
 
       return updated;

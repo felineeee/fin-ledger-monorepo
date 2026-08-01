@@ -8,15 +8,18 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
-import { PG_POOL } from '@fin-ledger/databases';
+import { Kysely, KYSELY_DB, PG_POOL } from '@fin-ledger/databases';
 import { LedgerRepository } from './ledger.repository.js';
 import * as crypto from 'crypto';
+import { DB } from '../../db/types.js';
+import { QueryLedgerDto } from './dto/query-ledger.dto.js';
 @Injectable()
 export class LedgerService {
   private readonly logger = new Logger(LedgerService.name);
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly ledgerRepository: LedgerRepository,
+    @Inject(KYSELY_DB) private readonly db: Kysely<DB>,
   ) {}
 
   async executeTransfer(
@@ -156,5 +159,73 @@ export class LedgerService {
     `;
     const res = await this.pool.query(query, [userId, type, currency]);
     return { account_id: res.rows[0].id };
+  }
+
+  // [x] GET /api/payments/ledger
+  async getLedgerEntries(query: QueryLedgerDto) {
+    const {
+      payment_id,
+      entry_type,
+      start_date,
+      end_date,
+      page = 1,
+      limit = 20,
+    } = query;
+    const offset = (page - 1) * limit;
+
+    let baseQuery = this.db.selectFrom('payment_ledger');
+
+    if (payment_id) {
+      baseQuery = baseQuery.where('payment_id', '=', payment_id);
+    }
+    if (entry_type) {
+      baseQuery = baseQuery.where('entry_type', '=', entry_type); // @ TODO Check type after migration
+    }
+    if (start_date) {
+      baseQuery = baseQuery.where('created_at', '>=', new Date(start_date));
+    }
+    if (end_date) {
+      baseQuery = baseQuery.where('created_at', '<=', new Date(end_date));
+    }
+
+    // Fetch total count for pagination metadata
+    const countResult = await baseQuery
+      .select((eb) => eb.fn.count<number>('id').as('total'))
+      .executeTakeFirst();
+
+    const total = Number(countResult?.total || 0);
+
+    // Fetch paginated rows
+    const data = await baseQuery
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .limit(limit)
+      .offset(offset)
+      .execute();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        total_pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // [x] GET /api/payments/ledger/:id
+  async getLedgerEntryById(id: string) {
+    const entry = await this.db
+      .selectFrom('payment_ledger')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!entry) {
+      throw new NotFoundException(`Ledger entry with ID ${id} not found`);
+    }
+
+    return entry;
   }
 }

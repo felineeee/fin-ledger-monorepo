@@ -1,44 +1,68 @@
-// src/payments/webhooks.controller.ts
-import { 
-  Controller, Get, Post, Patch, Body, Param, Headers, ParseUUIDPipe, HttpCode, HttpStatus 
+// src/payments/webhooks/webhooks.controller.ts
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  Headers,
+  UseGuards,
+  ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiHeader } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiParam,
+  ApiHeader,
+} from '@nestjs/swagger';
 import { WebhooksService } from './webhooks.service.js';
-import { DisputeResponseDto, UpdateDisputeStatusDto } from '../dto/webhooks.dto.js';
+import { XenditWebhookGuard } from './xendit.guard.js';
 
-@ApiTags('gateway-webhooks')
-@Controller('api')
+@ApiTags('webhooks')
+@Controller('api/webhooks')
 export class WebhooksController {
-  constructor(
-    private readonly webhooksService: WebhooksService,
-  ) {}
+  constructor(private readonly webhooksService: WebhooksService) {}
 
-  // --- WEBHOOKS ---
-  
-  @Post('webhooks/gateway')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Inbound Xendit webhook handler stub' })
-  @ApiHeader({ name: 'x-callback-token', required: true, description: 'Xendit verification token' })
-  async handleGatewayWebhook(
-    @Headers('x-callback-token') callbackToken: string,
+  @Post('gateway')
+  @UseGuards(XenditWebhookGuard)
+  @HttpCode(HttpStatus.OK) // Xendit requires a 200 OK response
+  @ApiOperation({ summary: 'Inbound payment gateway webhook handler' })
+  @ApiHeader({
+    name: 'x-callback-token',
+    description: 'Xendit verification callback token',
+  })
+  async handleXenditWebhook(
+    @Headers('x-callback-token') token: string,
     @Body() payload: any,
   ) {
-    return this.webhooksService.handleGatewayWebhook(callbackToken, payload);
+    // Extract event type from payload (Xendit places it in 'event', 'type', or payload data)
+    const eventType =
+      payload.event || payload.type || payload.data?.event || 'unknown';
+
+    // Matches the updated WebhooksService: handleGatewayWebhook(callbackToken, eventType, payload)
+    return await this.webhooksService.handleGatewayWebhook(
+      token,
+      eventType,
+      payload,
+    );
   }
 
-  @Get('webhooks/events')
+  @Get('events')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Internal audit log of received webhooks (debugging/deduplication)' })
-  async getWebhookEvents() {
+  @ApiOperation({ summary: 'Internal audit log of received webhooks' })
+  async getEvents() {
     return this.webhooksService.getWebhookEvents();
   }
 
-  @Get('webhooks/events/:id')
+  @Get('events/:id')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get details of a specific received webhook event' })
-  async getWebhookEventDetails(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiParam({ name: 'id', description: 'Webhook Event UUID' })
+  async getEventById(@Param('id', ParseUUIDPipe) id: string) {
+    // Matches the updated WebhooksService: getWebhookEventDetails(id)
     return this.webhooksService.getWebhookEventDetails(id);
   }
 }

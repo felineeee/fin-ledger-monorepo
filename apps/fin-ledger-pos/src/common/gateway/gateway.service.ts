@@ -3,19 +3,58 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  InternalServerErrorException,
   Inject,
 } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
+import { Xendit } from 'xendit-node';
 import { DB } from '../../db/types.js';
 import {
   CreateCheckoutSessionDto,
-  UpdateGatewayConfigDto,
+  // UpdateGatewayConfigDto,
 } from './dto/gateway.dto.js';
+import { UpdateGatewayConfigDto } from './dto/gateway-config.dto.js';
 import { KYSELY_DB } from '@fin-ledger/databases';
 
+// @TODO i might separate this gateway services into gateway-config service
 @Injectable()
 export class GatewayService {
-  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
+  private xenditClient!: Xendit;
+  private isEnabled: boolean = true;
+  private secretKey: string;
+  private webhookToken: string;
+
+  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {
+    this.secretKey = process.env.XENDIT_SECRET_KEY || '';
+    this.webhookToken = process.env.XENDIT_WEBHOOK_TOKEN || '';
+
+    this.initializeClient();
+  }
+
+  private initializeClient() {
+    if (!this.secretKey) {
+      console.warn('XENDIT_SECRET_KEY is missing. Gateway features will fail.');
+      return;
+    }
+
+    this.xenditClient = new Xendit({
+      secretKey: this.secretKey,
+    });
+  }
+
+  public getClient(): Xendit {
+    if (!this.isEnabled)
+      throw new InternalServerErrorException('Gateway is currently disabled.');
+    if (!this.xenditClient)
+      throw new InternalServerErrorException(
+        'Xendit client is not configured.',
+      );
+    return this.xenditClient;
+  }
+
+  public getWebhookToken(): string {
+    return this.webhookToken;
+  }
 
   // Helper to fetch the Xendit config from the database
   private async getXenditConfig() {
@@ -36,6 +75,38 @@ export class GatewayService {
           ? JSON.parse(method.config)
           : method.config,
     };
+  }
+
+  async getConfig() {
+    return {
+      provider: 'XENDIT',
+      is_enabled: this.isEnabled,
+      masked_key: this.secretKey ? `***${this.secretKey.slice(-4)}` : null,
+      has_webhook_token: !!this.webhookToken,
+    };
+  }
+
+  async updateConfig(dto: UpdateGatewayConfigDto) {
+    let reinitRequired = false;
+
+    if (dto.secret_key !== undefined) {
+      this.secretKey = dto.secret_key;
+      reinitRequired = true;
+    }
+
+    if (dto.webhook_token !== undefined) {
+      this.webhookToken = dto.webhook_token;
+    }
+
+    if (dto.is_enabled !== undefined) {
+      this.isEnabled = dto.is_enabled;
+    }
+
+    if (reinitRequired) {
+      this.initializeClient();
+    }
+
+    return this.getConfig();
   }
 
   // [x] POST /api/payments/:id/create-checkout-session

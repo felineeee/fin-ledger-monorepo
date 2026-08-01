@@ -1,10 +1,31 @@
 // src/reconciliation/reconciliation.controller.ts
-import { 
-  Controller, Get, Post, Query, Param, ParseUUIDPipe, HttpCode, HttpStatus 
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  Param,
+  ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
+  Body,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { ReconciliationService } from './reconciliation.service.js';
-import { LedgerQueryDto, DailyReconciliationQueryDto, DiscrepancyQueryDto } from './dto/reconciliation.dto.js';
+import {
+  LedgerQueryDto,
+  DailyReconciliationQueryDto,
+  DiscrepancyQueryDto,
+  QueryDailyReconciliationDto,
+  QueryDiscrepanciesDto,
+  CloseDailyReconciliationDto,
+} from './dto/reconciliation.dto.js';
 
 @ApiTags('reconciliation-ledger')
 @ApiBearerAuth()
@@ -29,31 +50,34 @@ export class ReconciliationController {
 
   @Get('locations/:id/reconciliation/daily')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Fetch daily shift reconciliation breakdown against shift records' })
+  @ApiOperation({
+    summary: 'Fetch daily shift reconciliation breakdown against shift records',
+  })
   @ApiParam({ name: 'id', description: 'Location UUID' })
   async getDailyReconciliation(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query() query: DailyReconciliationQueryDto,
+    @Query() query: QueryDailyReconciliationDto,
   ) {
     return this.reconciliationService.getDailyReconciliation(id, query);
   }
 
   @Get('reconciliation/discrepancies')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'List cash drawer/terminal variance discrepancies system-wide' })
-  async getDiscrepancies(@Query() query: DiscrepancyQueryDto) {
+  @ApiOperation({ summary: 'List cash drawer/terminal variance discrepancies' })
+  async getDiscrepancies(@Query() query: QueryDiscrepanciesDto) {
     return this.reconciliationService.getDiscrepancies(query);
   }
 
   @Post('locations/:id/reconciliation/close')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Lock and close shift/day financial reconciliation (Force closes open shifts)' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Lock and close shift/day financial reconciliation',
+  })
   @ApiParam({ name: 'id', description: 'Location UUID' })
-  @ApiResponse({ status: 200, description: 'Day is locked and final variance report returned' })
   async closeDailyReconciliation(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query() query: DailyReconciliationQueryDto,
+    @Body() dto: CloseDailyReconciliationDto,
   ) {
-    return this.reconciliationService.closeDailyReconciliation(id, query);
+    return this.reconciliationService.closeDailyReconciliation(id, dto);
   }
 }

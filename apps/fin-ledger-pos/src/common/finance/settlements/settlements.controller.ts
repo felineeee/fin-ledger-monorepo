@@ -6,28 +6,49 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  Body,
+  Query,
 } from '@nestjs/common';
-import { ApiOperation } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { SettlementsService } from './settlements.service.js';
+import {
+  QuerySettlementsDto,
+  MarkSettlementPaidDto,
+} from '../dto/finance.dto.js';
 
-@Controller('settlements')
+@ApiTags('settlements')
+@ApiBearerAuth()
+@Controller('api/settlements')
 export class SettlementsController {
   constructor(private readonly settlementsService: SettlementsService) {}
-  @Get('settlements')
+  @Get()
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'List processor bank payouts/settlements' })
-  async getSettlements() {
-    return this.settlementsService.getSettlements();
+  async getSettlements(@Query() query: QuerySettlementsDto) {
+    return this.settlementsService.getSettlements(query);
   }
 
-  @Get('settlements/:id')
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get settlement details' })
+  @ApiParam({ name: 'id', description: 'Settlement UUID' })
   async getSettlementById(@Param('id', ParseUUIDPipe) id: string) {
     return this.settlementsService.getSettlementById(id);
   }
 
-  @Post('settlements/:id/mark-paid')
+  @Post(':id/mark-paid')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark settlement reconciled in bank account' })
-  async markSettlementPaid(@Param('id', ParseUUIDPipe) id: string) {
-    return this.settlementsService.markSettlementPaid(id);
+  @ApiParam({ name: 'id', description: 'Settlement UUID' })
+  async markSettlementPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkSettlementPaidDto,
+  ) {
+    return this.settlementsService.markSettlementPaid(id, dto);
   }
 }
