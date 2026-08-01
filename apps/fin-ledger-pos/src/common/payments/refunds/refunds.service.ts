@@ -15,6 +15,7 @@ export class RefundsService {
   constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {}
 
   // [x] POST /api/payments/:id/refunds
+  // refunds.service.ts
   async issueRefund(paymentId: string, dto: CreateRefundDto) {
     return this.db.transaction().execute(async (trx) => {
       const payment = await trx
@@ -23,8 +24,10 @@ export class RefundsService {
         .where('id', '=', paymentId)
         .executeTakeFirst();
 
-      if (!payment)
+      if (!payment) {
         throw new NotFoundException(`Payment ${paymentId} not found.`);
+      }
+
       if (
         payment.status !== 'CAPTURED' &&
         payment.status !== 'PARTIALLY_REFUNDED'
@@ -34,7 +37,7 @@ export class RefundsService {
         );
       }
 
-      // Calculate total amount already refunded or currently pending
+      // Calculate total amount already refunded
       const existingRefunds = await trx
         .selectFrom('refunds')
         .select(({ fn }) => fn.sum('amount').as('total_refunded'))
@@ -51,17 +54,30 @@ export class RefundsService {
         );
       }
 
-      // Initialize the refund in PENDING state
-      return trx
+      // 1. Insert Refund Record
+      const refund = await trx
         .insertInto('refunds')
         .values({
           payment_id: paymentId,
           amount: dto.amount,
           reason: dto.reason ?? null,
-          status: 'PENDING',
+          status: 'COMPLETED',
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+
+      // 2. Insert Double-Entry Ledger Reversal (-amount)
+      await trx
+        .insertInto('payment_ledger')
+        .values({
+          payment_id: paymentId,
+          entry_type: 'REFUNDED',
+          amount: sql`${dto.amount} * -1`,
+          currency: payment.currency,
+        })
+        .execute();
+
+      return refund;
     });
   }
 
