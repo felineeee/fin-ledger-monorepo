@@ -74,329 +74,334 @@ curl http://localhost:8080/api/health
 
 ```mermaid
 erDiagram
-    %% Relationships
-    locations ||--o{ inventory_levels : "has levels"
-    locations ||--o{ inventory_ledger : "logs events"
-    locations ||--o{ transfers : "dispatches"
-    locations ||--o{ transfers : "receive"
-    locations ||--o{ stocktakes : "conducts"
-    locations ||--o{ purchase_orders : "receives"
-
-
-    suppliers ||--o{ purchase_orders : "fulfills"
-    purchase_orders ||--o{ purchase_order_items : "contains"
-
-    transfers ||--o{ transfer_items : "contains"
-
-    stocktakes ||--o{ stocktake_items : "contains"
-
-    %% Tables
-    locations {
+    payment_methods {
         uuid id PK
         varchar name
-        varchar type
-        text address
+        payment_method_type type
+        varchar provider
         boolean is_active
+        jsonb config
         timestamptz created_at
     }
 
-    inventory_levels {
+    terminals {
         uuid id PK
-        uuid location_id FK
-        uuid product_id "Soft Ref"
-        uuid variant_id "Soft Ref"
-        integer quantity_on_hand
-        integer quantity_reserved
-        integer reorder_point
-        timestamptz updated_at
-    }
-
-    inventory_ledger {
-        uuid id PK
-        uuid location_id FK
-        uuid product_id "Soft Ref"
-        uuid variant_id "Soft Ref"
-        varchar transaction_type
-        integer quantity_change
-        varchar reference_type
-        uuid reference_id "Polymorphic Ref"
-        timestamptz created_at
-    }
-
-    suppliers {
-        uuid id PK
+        uuid location_id
         varchar name
-        varchar contact_email
-        integer lead_time_days
-        boolean is_active
+        varchar serial_number UK
+        terminal_status status
         timestamptz created_at
     }
 
-    purchase_orders {
+    shifts {
         uuid id PK
-        varchar po_number
-        uuid supplier_id FK
-        uuid destination_location_id FK
-        varchar status
-        timestamptz expected_delivery_date
+        uuid location_id
+        uuid cashier_id
+        shift_status status
+        decimal starting_float
+        decimal ending_cash_expected
+        decimal ending_cash_actual
+        decimal variance
+        decimal total_cash_drops
+        timestamptz opened_at
+        timestamptz closed_at
+    }
+
+    cash_drops {
+        uuid id PK
+        uuid shift_id FK
+        decimal amount
+        uuid recorded_by
+        timestamptz created_at
+    }
+
+    fee_schedules {
+        uuid id PK
+        uuid payment_method_id FK
+        varchar channel_code
+        decimal flat_fee
+        decimal percentage_fee
+        decimal vat_rate
+        decimal min_fee
+        decimal max_fee
+        boolean is_active
         timestamptz created_at
         timestamptz updated_at
     }
 
-    purchase_order_items {
+    payments {
         uuid id PK
-        uuid po_id FK
-        uuid product_id "Soft Ref"
-        uuid variant_id "Soft Ref"
-        integer quantity_ordered
-        integer quantity_received
-        numeric unit_cost
+        uuid order_id
+        uuid location_id
+        uuid shift_id FK
+        uuid terminal_id FK
+        uuid payment_method_id FK
+        uuid fee_schedule_id FK
+        payment_channel channel
+        payment_status status
+        decimal amount
+        decimal tip_amount
+        varchar currency
+        varchar idempotency_key UK
+        decimal snap_flat_fee
+        decimal snap_percentage_fee
+        decimal snap_vat_rate
+        decimal total_fee_deducted
+        decimal net_payout
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    transfers {
+    refunds {
         uuid id PK
-        varchar tracking_number
-        uuid source_location_id FK
-        uuid destination_location_id FK
-        varchar status
-        timestamptz dispatched_at
-        timestamptz received_at
+        uuid payment_id FK
+        decimal amount
+        varchar reason
+        refund_status status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    payment_ledger {
+        uuid id PK
+        uuid payment_id FK
+        ledger_entry_type entry_type
+        decimal amount
+        varchar currency
+        jsonb metadata
         timestamptz created_at
     }
 
-    transfer_items {
+    webhook_events {
         uuid id PK
-        uuid transfer_id FK
-        uuid product_id "Soft Ref"
-        uuid variant_id "Soft Ref"
-        integer quantity_requested
-        integer quantity_dispatched
-        integer quantity_received
+        varchar event_id UK
+        uuid payment_id FK
+        varchar event_type
+        jsonb payload
+        timestamptz created_at
     }
 
-    stocktakes {
+    disputes {
         uuid id PK
-        uuid location_id FK
-        varchar status
-        timestamptz started_at
-        timestamptz completed_at
+        uuid payment_id FK
+        decimal amount
+        dispute_status status
+        text evidence_text
+        varchar evidence_url
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    stocktake_items {
+    settlements {
         uuid id PK
-        uuid stocktake_id FK
-        uuid product_id "Soft Ref"
-        uuid variant_id "Soft Ref"
-        integer expected_quantity
-        integer counted_quantity
-        integer variance
+        varchar provider
+        decimal amount
+        settlement_status status
+        timestamptz settled_at
+        timestamptz created_at
+        timestamptz updated_at
     }
+
+    daily_reconciliations {
+        uuid id PK
+        uuid location_id
+        date reconciliation_date
+        integer total_shifts
+        decimal total_opening_float
+        decimal total_ending_cash_actual
+        decimal total_cash_drops
+        decimal total_variance
+        text notes
+        timestamptz closed_at
+    }
+
+    shifts ||--o{ cash_drops : "has"
+    shifts ||--o{ payments : "contains"
+    terminals ||--o{ payments : "processes"
+    payment_methods ||--o{ fee_schedules : "configured with"
+    payment_methods ||--o{ payments : "used in"
+    fee_schedules ||--o{ payments : "snapshots"
+    payments ||--o{ refunds : "has"
+    payments ||--o{ payment_ledger : "logs"
+    payments ||--o{ webhook_events : "triggers"
+    payments ||--o{ disputes : "faces"
 ```
 
-## Inventory Lifecycle
+## Key Architecture
+TBA
 
-```mermaid
-stateDiagram-v2
-    direction LR
-
-    state "Purchase Order Lifecycle" as PO {
-        [*] --> DRAFT : Create
-
-        DRAFT --> SENT : Finalize & Send
-        DRAFT --> CANCELLED : Cancel
-
-        SENT --> PARTIALLY_RECEIVED : Partial
-        SENT --> RECEIVED : Full
-
-        state PARTIALLY_RECEIVED {
-            [*] --> InProgress
-            InProgress --> InProgress : Additional
-        }
-
-        PARTIALLY_RECEIVED --> RECEIVED : Final
-
-        RECEIVED --> [*]
-        CANCELLED --> [*]
-    }
-```
-
-```mermaid
-stateDiagram-v2
-    direction LR
-
-    state "Inter-Branch Transfers" as Transfer {
-        [*] --> PENDING : Submit Request
-
-        PENDING --> CANCELLED_TR : Cancel
-        PENDING --> IN_TRANSIT : Dispatch
-
-        IN_TRANSIT --> COMPLETED : Receive
-        IN_TRANSIT --> REJECTED : Refuse Shipment
-
-        COMPLETED --> [*]
-        CANCELLED_TR --> [*]
-        REJECTED --> [*]
-    }
-```
-
-```mermaid
-stateDiagram-v2
-    direction LR
-
-    state "Stocktake Sessions" as Stocktake {
-        [*] --> IN_PROGRESS : Start & Snapshot
-
-        IN_PROGRESS --> ABORTED : Delete Session
-        IN_PROGRESS --> FINALIZED : Complete (calculate variance)
-
-        FINALIZED --> [*]
-        ABORTED --> [*]
-    }
-```
-
-```mermaid
-stateDiagram-v2
-    direction LR
-
-    state "Returns" as Returns {
-        [*] --> QUARANTINE : Process Return
-
-        QUARANTINE --> RESTOCKED : Back to inv
-        QUARANTINE --> DISCARDED : Removed
-
-        RESTOCKED --> [*]
-        DISCARDED --> [*]
-    }
-```
-
-## Endpoints
+## API Endpoints Reference
 
 ### 0. System Health & Core
 
-| Method | Endpoint      | Description                            |
-| ------ | ------------- | -------------------------------------- |
-| `GET`  | `/api/health` | Service health and uptime status check |
-| `GET`  | `/api/docs`   | API Documentation                      |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | System health and connectivity status check |
+| `GET` | `/api/docs` | API Documentation |
 
-### 1. Logistics Foundation (Core Inventory)
+---
 
-#### Locations
+## 1. Phase 1: Payment Core & Configuration Foundation
 
-Manage physical stores, warehouses, and virtual zones.
+### Payment Methods
 
-| Method  | Endpoint             | Description                                                |
-| ------- | -------------------- | ---------------------------------------------------------- |
-| `GET`   | `/api/locations`     | List all stores, warehouses, and virtual zones             |
-| `GET`   | `/api/locations/:id` | Get details for a single location                          |
-| `POST`  | `/api/locations`     | Create a new location (`STORE`, `WAREHOUSE`, or `VIRTUAL`) |
-| `PATCH` | `/api/locations/:id` | Update location details or deactivate (`is_active: false`) |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/payment-methods` | List configured payment methods |
+| `POST` | `/api/payment-methods` | Create a new payment method configuration |
+| `GET` | `/api/payment-methods/:id` | Get single payment method details |
+| `PATCH` | `/api/payment-methods/:id` | Update payment method configuration or status (`is_active: false`) |
 
-#### Inventory Levels
+### Payments & Transactions (Core Engine)
 
-Track and adjust real-time stock balances across locations.
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/payments` | Create a payment attempt against an `orderId` (`channel`: `IN_PERSON` | `ONLINE`, requires/infers `shiftId` for `IN_PERSON`) |
+| `GET` | `/api/payments` | List payment attempts across all orders |
+| `GET` | `/api/payments/:id` | Get payment attempt details |
+| `PATCH` | `/api/payments/:id` | Edit amount/method for `PENDING` payments prior to capture |
+| `DELETE` | `/api/payments/:id` | Cancel an uncaptured, un-attempted payment record |
+| `GET` | `/api/orders/:orderId/payments` | Get all payment attempts linked to a specific order |
 
-| Method  | Endpoint                                                    | Description                                                                                |
-| ------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `GET`   | `/api/locations/:id/inventory`                              | Fetch paginated stock levels for a specific location (`limit` & `offset` required)         |
-| `GET`   | `/api/locations/:id/inventory/:productId`                   | Get real-time stock level & inline `reorder_threshold` for a product at a location         |
-| `GET`   | `/api/products/:id/inventory`                               | View stock level breakdown across all locations for a specific product                     |
-| `PATCH` | `/api/locations/:id/inventory/:productId/reorder-threshold` | Set minimum reorder point threshold for a product at a specific location                   |
-| `GET`   | `/api/inventory/low-stock`                                  | Cross-location view of products falling below their reorder point                          |
-| `POST`  | `/api/inventory/adjust`                                     | Perform manual stock adjustments; updates stock and writes `SHRINKAGE` or `CORRECTION` log |
+---
 
-#### Audit Ledger
+## 2. Phase 2: In-Person (POS), Terminals & Shift Operations
 
-Immutable audit trail tracking all historical stock movements.
+### Shift & Cash Drawer Operations
 
-| Method | Endpoint                    | Description                                                     |
-| ------ | --------------------------- | --------------------------------------------------------------- |
-| `GET`  | `/api/inventory/ledger`     | Query audit trail filterable by product, location, or date      |
-| `GET`  | `/api/inventory/ledger/:id` | Retrieve single ledger entry details for deep audit drill-downs |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/shifts/open` | Open shift and declare starting cash float in drawer |
+| `GET` | `/api/shifts` | List shifts (filterable by `locationId`, `cashierId`, date range, `status`) |
+| `GET` | `/api/shifts/:id` | Get detailed shift summary (opening float, running totals, cash drops, linked payments) |
+| `GET` | `/api/locations/:id/shifts` | Shift history for a specific location |
+| `POST` | `/api/shifts/cash-drop` | Record mid-shift cash drop (moving excess cash from drawer to safe) |
+| `POST` | `/api/shifts/close` | Close shift, record ending cash drawer count, and calculate variance |
+| `POST` | `/api/shifts/:id/force-close` | Manager/Admin override to force-close an abandoned shift and flag for audit |
 
-### 2. Purchase Orders (Supplier Procurement)
+### Capture (In-Person)
 
-#### Suppliers
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/payments/:id/capture-cash` | Complete and record a cash payment capture |
+| `POST` | `/api/payments/:id/capture-card-present` | Initiate/complete card-present hardware capture |
+| `POST` | `/api/payments/:id/cancel` | Void payment attempt prior to capture completion |
+| `POST` | `/api/payments/:id/reverse` | Reverse a captured in-person payment (same-day window void) |
 
-Manage vendor and supplier directory information.
+### Terminals / Devices
 
-| Method  | Endpoint             | Description                                                |
-| ------- | -------------------- | ---------------------------------------------------------- |
-| `GET`   | `/api/suppliers`     | List all suppliers and contact details                     |
-| `GET`   | `/api/suppliers/:id` | Get single supplier details                                |
-| `POST`  | `/api/suppliers`     | Register a new supplier                                    |
-| `PATCH` | `/api/suppliers/:id` | Update supplier details or deactivate (`is_active: false`) |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/terminals` | List registered card readers per location |
+| `POST` | `/api/terminals` | Register a new card terminal |
+| `GET` | `/api/terminals/:id` | Get details of a single terminal |
+| `PATCH` | `/api/terminals/:id` | Update terminal details (rename, reassign location, update status) |
+| `POST` | `/api/terminals/:id/ping` | Terminal connectivity and health check |
 
-#### Purchase Orders
+### Split Tender & Multi-Method
 
-Draft, manage, and transition inbound procurement orders.
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/orders/:orderId/payments/split` | Atomically orchestrate multiple captures (part cash, part card) using internal core capture pipelines |
+| `GET` | `/api/orders/:orderId/payments/balance` | Calculate remaining unpaid balance on an order |
 
-| Method   | Endpoint                          | Description                                               |
-| -------- | --------------------------------- | --------------------------------------------------------- |
-| `GET`    | `/api/purchase-orders`            | List POs with optional filtering by status                |
-| `GET`    | `/api/purchase-orders/:id`        | View full PO details and nested line items                |
-| `POST`   | `/api/purchase-orders`            | Create a `DRAFT` PO with requested items and quantities   |
-| `PATCH`  | `/api/purchase-orders/:id`        | Edit line items and quantities while PO status is `DRAFT` |
-| `PATCH`  | `/api/purchase-orders/:id/status` | Transition PO state (`DRAFT` ➔ `SENT` / `CANCELLED`)      |
-| `DELETE` | `/api/purchase-orders/:id`        | Hard-delete an un-sent `DRAFT` PO                         |
+---
 
-#### Receiving Engine
+## 3. Phase 3: Tips, Receipts, & Post-Processing
 
-Inbound stock processing and partial receiving workflow.
+### Tips / Gratuity
 
-| Method | Endpoint                            | Description                                                                                    |
-| ------ | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `POST` | `/api/purchase-orders/:id/receive`  | Process scanned items, update `quantity_received`, increment stock, and write `RECEIPT` ledger |
-| `GET`  | `/api/purchase-orders/:id/receipts` | Historical breakdown of partial receiving events against a PO                                  |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `PATCH` | `/api/payments/:id/tip` | Attach or adjust a tip amount post-capture |
+| `GET` | `/api/locations/:id/reports/tips` | Get tip totals filtered by location and date range |
 
-### 3. Inter-Branch Transfers
+### Receipts
 
-#### Transfer Management
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/payments/:id/receipt` | Retrieve formatted receipt payload (JSON or print-ready) |
+| `POST` | `/api/payments/:id/receipt/resend` | Email or SMS receipt copy to customer |
 
-Request and track stock movements between internal locations.
+### Refunds
 
-| Method  | Endpoint                                | Description                                                   |
-| ------- | --------------------------------------- | ------------------------------------------------------------- |
-| `GET`   | `/api/transfers`                        | List stock movement requests                                  |
-| `GET`   | `/api/transfers/:id`                    | View specific transfer manifest and item breakdown            |
-| `GET`   | `/api/locations/:id/transfers/incoming` | Filtered view: transfers destined for a specific location     |
-| `GET`   | `/api/locations/:id/transfers/outgoing` | Filtered view: transfers originating from a specific location |
-| `POST`  | `/api/transfers`                        | Submit a transfer request between locations                   |
-| `PATCH` | `/api/transfers/:id/cancel`             | Cancel a transfer while status is `PENDING` (before dispatch) |
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/payments/:id/refunds` | Issue a refund against a captured payment |
+| `GET` | `/api/payments/:id/refunds` | List all refunds issued for a specific payment |
+| `GET` | `/api/refunds` | List all refunds system-wide |
+| `GET` | `/api/refunds/:id` | Get single refund details |
+| `PATCH` | `/api/refunds/:id/status` | Update async refund status (card-present terminal processing) |
 
-#### Dispatch & Receive Flow
+---
 
-| Method | Endpoint                      | Description                                                                        |
-| ------ | ----------------------------- | ---------------------------------------------------------------------------------- |
-| `POST` | `/api/transfers/:id/dispatch` | Deduct stock at origin, write `TRANSFER_OUT` to ledger, set status to `IN_TRANSIT` |
-| `POST` | `/api/transfers/:id/receive`  | Increment stock at destination, write `TRANSFER_IN` to ledger, complete transfer   |
-| `POST` | `/api/transfers/:id/reject`   | Refuse damaged/wrong shipment at destination (route stock to quarantine)           |
+## 4. Phase 4: Online Gateway & Asynchronous Processing
 
-### 4. Stocktakes & Cycle Counting
+### Online Checkout Gateway
 
-#### Stocktake Management
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/payments/:id/create-checkout-session` | Initialize online hosted checkout session |
+| `GET` | `/api/payments/:id/checkout-session` | Get checkout session status and payload |
+| `POST` | `/api/payments/:id/retry` | Retry a failed online checkout session |
+| `POST` | `/api/payments/:id/cancel-checkout-session` | Cancel an active online checkout session |
+| `GET` | `/api/gateway-config` | Get active gateway providers and public keys (SuperAdmin) |
+| `PATCH` | `/api/gateway-config` | Configure/enable gateway provider settings (SuperAdmin) |
 
-| Method   | Endpoint              | Description                                                                        |
-| -------- | --------------------- | ---------------------------------------------------------------------------------- |
-| `GET`    | `/api/stocktakes`     | List active and historical stock count sessions                                    |
-| `GET`    | `/api/stocktakes/:id` | Fetch stocktake status and list of snapshot items to count                         |
-| `POST`   | `/api/stocktakes`     | Start count session and snapshot current `inventory_levels` as `expected_quantity` |
-| `DELETE` | `/api/stocktakes/:id` | Cancel/abort an `IN_PROGRESS` stocktake session                                    |
+### Webhooks
 
-#### Counting & Reconciliation
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/webhooks/gateway` | Inbound payment gateway webhook handler stub |
+| `GET` | `/api/webhooks/events` | Internal audit log of received webhooks (debugging/deduplication) |
+| `GET` | `/api/webhooks/events/:id` | Get details of a specific received webhook event |
 
-| Method  | Endpoint                              | Description                                                                               |
-| ------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `POST`  | `/api/stocktakes/:id/count`           | Submit batch barcode scans to update `counted_quantity`                                   |
-| `PATCH` | `/api/stocktakes/:id/count/:itemId`   | Correct a single miscounted item quantity before finalizing                               |
-| `GET`   | `/api/stocktakes/:id/variance-report` | Review expected vs. counted discrepancies before committing adjustments                   |
-| `POST`  | `/api/stocktakes/:id/complete`        | Lock session, calculate variances, align `inventory_levels`, and write ledger adjustments |
+### Disputes & Chargebacks
 
-### 5. Reverse Logistics & Quarantine
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/disputes` | List all chargebacks and disputes |
+| `GET` | `/api/disputes/:id` | Get dispute details |
+| `POST` | `/api/disputes/:id/respond` | Submit evidence response for a dispute |
+| `PATCH` | `/api/disputes/:id/status` | Update internal dispute lifecycle status |
 
-#### Returns & Disposition
+---
 
-| Method | Endpoint                   | Description                                                                       |
-| ------ | -------------------------- | --------------------------------------------------------------------------------- |
-| `POST` | `/api/returns`             | Process customer return into virtual quarantine location (writes `RETURN` ledger) |
-| `POST` | `/api/returns/:id/restock` | Move pristine item from quarantine back to active sales floor                     |
-| `POST` | `/api/returns/:id/discard` | Write off damaged item from quarantine (writes `DAMAGE` ledger)                   |
+## 5. Phase 5: Ledger, Reconciliation, & Financial Reporting
+
+### Reconciliation & Ledger
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/payments/ledger` | List immutable transaction ledger records |
+| `GET` | `/api/payments/ledger/:id` | Get single ledger entry details |
+| `GET` | `/api/locations/:id/reconciliation/daily` | Fetch daily shift reconciliation breakdown against shift records |
+| `GET` | `/api/reconciliation/discrepancies` | List cash drawer/terminal variance discrepancies |
+| `POST` | `/api/locations/:id/reconciliation/close` | Lock and close shift/day financial reconciliation |
+
+### Settlement & Payouts
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/settlements` | List processor bank payouts/settlements |
+| `GET` | `/api/settlements/:id` | Get settlement details |
+| `POST` | `/api/settlements/:id/mark-paid` | Mark settlement reconciled in bank account |
+
+### Fees & Multi-Currency
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/fee-schedules` | List processor fee schedules by method |
+| `POST` | `/api/fee-schedules` | Create a new fee schedule |
+| `PATCH` | `/api/fee-schedules/:id` | Update fee schedule rates |
+| `GET` | `/api/payments/:id/fees` | Get detailed fee breakdown for net-revenue calculation |
+| `GET` | `/api/currencies` | List supported system currencies |
+| `GET` | `/api/exchange-rates` | Fetch real-time exchange rates |
+
+### Financial Reporting
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/locations/:id/reports/payment-methods-breakdown` | Breakdown of sales by payment method per location |
+| `GET` | `/api/locations/:id/reports/failed-payments` | Report of failed payment attempts per location |
+| `GET` | `/api/reports/revenue/company-wide` | Consolidated company-wide revenue reporting |
