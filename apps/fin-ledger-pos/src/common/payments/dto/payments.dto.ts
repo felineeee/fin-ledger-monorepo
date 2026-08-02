@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsUUID,
   IsEnum,
+  IsISO4217CurrencyCode,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -39,6 +40,15 @@ export class CreatePaymentDto {
   @IsNumber()
   @Min(1)
   amount!: number;
+
+  @ApiPropertyOptional({
+    example: 'IDR',
+    default: 'IDR',
+    description: '3-letter ISO 4217 currency code',
+  })
+  @IsOptional()
+  @IsISO4217CurrencyCode()
+  currency?: string = 'IDR';
 
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',

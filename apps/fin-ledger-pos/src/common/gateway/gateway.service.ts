@@ -1,125 +1,86 @@
-// src/payments/gateway.service.ts
 import {
   Injectable,
   ConflictException,
   NotFoundException,
-  InternalServerErrorException,
   Inject,
+  BadRequestException,
 } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
-import { Xendit } from 'xendit-node';
 import { DB } from '../../db/types.js';
-import {
-  CreateCheckoutSessionDto,
-  // UpdateGatewayConfigDto,
-} from './dto/gateway.dto.js';
-import { UpdateGatewayConfigDto } from './dto/gateway-config.dto.js';
+import { CreateCheckoutSessionDto } from './dto/gateway.dto';
 import { KYSELY_DB } from '@fin-ledger/databases';
+import { GatewayConfigService } from './gateway-config/gateway-config.service';
+import { PaymentRequestCurrency } from 'xendit-node/payment_request/models/PaymentRequestCurrency.js';
+import { PaymentRequestChannelProperties } from 'xendit-node/payment_request/models/PaymentRequestChannelProperties.js';
+import { EWalletChannelCode } from 'xendit-node/payment_request/models/EWalletChannelCode.js';
+import { VirtualAccountChannelCode } from 'xendit-node/payment_request/models/VirtualAccountChannelCode.js';
+import { QRCodeChannelCode } from 'xendit-node/payment_method/models/QRCodeChannelCode.js';
+/* GatewayService is used for inner-app checkout activity
+ *
+ */
 
-// @TODO i might separate this gateway services into gateway-config service
+// @TODO Is gopay not supported?
+function resolveEWalletChannel(code: string): EWalletChannelCode {
+  const map: Record<string, EWalletChannelCode> = {
+    SHOPEEPAY: EWalletChannelCode.Shopeepay,
+    DANA: EWalletChannelCode.Dana,
+    OVO: EWalletChannelCode.Ovo,
+    LINKAJA: EWalletChannelCode.Linkaja,
+  };
+  return map[code?.toUpperCase()] || (code as EWalletChannelCode);
+}
+
+function resolveVAChannel(code: string): VirtualAccountChannelCode {
+  const map: Record<string, VirtualAccountChannelCode> = {
+    BCA: VirtualAccountChannelCode.Bca,
+    BNI: VirtualAccountChannelCode.Bni,
+    BRI: VirtualAccountChannelCode.Bri,
+    MANDIRI: VirtualAccountChannelCode.Mandiri,
+    PERMATA: VirtualAccountChannelCode.Permata,
+    CIMB: VirtualAccountChannelCode.Cimb,
+  };
+  return map[code?.toUpperCase()] || (code as VirtualAccountChannelCode);
+}
+
+function resolveQRChannel(code: string): QRCodeChannelCode {
+  return (
+    code?.toUpperCase() === 'QRIS' ? QRCodeChannelCode.Qris : code
+  ) as QRCodeChannelCode;
+}
 @Injectable()
 export class GatewayService {
-  private xenditClient!: Xendit;
-  private isEnabled: boolean = true;
-  private secretKey: string;
-  private webhookToken: string;
-
-  constructor(@Inject(KYSELY_DB) private readonly db: Kysely<DB>) {
-    this.secretKey = process.env.XENDIT_SECRET_KEY || '';
-    this.webhookToken = process.env.XENDIT_WEBHOOK_TOKEN || '';
-
-    this.initializeClient();
-  }
-
-  private initializeClient() {
-    if (!this.secretKey) {
-      console.warn('XENDIT_SECRET_KEY is missing. Gateway features will fail.');
-      return;
-    }
-
-    this.xenditClient = new Xendit({
-      secretKey: this.secretKey,
-    });
-  }
-
-  public getClient(): Xendit {
-    if (!this.isEnabled)
-      throw new InternalServerErrorException('Gateway is currently disabled.');
-    if (!this.xenditClient)
-      throw new InternalServerErrorException(
-        'Xendit client is not configured.',
-      );
-    return this.xenditClient;
-  }
-
-  public getWebhookToken(): string {
-    return this.webhookToken;
-  }
-
-  // Helper to fetch the Xendit config from the database
-  private async getXenditConfig() {
-    const method = await this.db
-      .selectFrom('payment_methods')
-      .selectAll()
-      .where('name', '=', 'Xendit Gateway') // Assuming this is your registered gateway name
-      .executeTakeFirst();
-
-    if (!method)
-      throw new NotFoundException(
-        'Xendit Gateway configuration not found in payment_methods.',
-      );
-    return {
-      id: method.id,
-      config:
-        typeof method.config === 'string'
-          ? JSON.parse(method.config)
-          : method.config,
-    };
-  }
-
-  async getConfig() {
-    return {
-      provider: 'XENDIT',
-      is_enabled: this.isEnabled,
-      masked_key: this.secretKey ? `***${this.secretKey.slice(-4)}` : null,
-      has_webhook_token: !!this.webhookToken,
-    };
-  }
-
-  async updateConfig(dto: UpdateGatewayConfigDto) {
-    let reinitRequired = false;
-
-    if (dto.secret_key !== undefined) {
-      this.secretKey = dto.secret_key;
-      reinitRequired = true;
-    }
-
-    if (dto.webhook_token !== undefined) {
-      this.webhookToken = dto.webhook_token;
-    }
-
-    if (dto.is_enabled !== undefined) {
-      this.isEnabled = dto.is_enabled;
-    }
-
-    if (reinitRequired) {
-      this.initializeClient();
-    }
-
-    return this.getConfig();
-  }
+  constructor(
+    @Inject(KYSELY_DB) private readonly db: Kysely<DB>,
+    private readonly configService: GatewayConfigService,
+  ) {}
 
   // [x] POST /api/payments/:id/create-checkout-session
   async createCheckoutSession(
     paymentId: string,
     dto: CreateCheckoutSessionDto,
   ) {
+    // 1. Fetch payment alongside its associated payment method metadata
     const payment = await this.db
       .selectFrom('payments')
-      .selectAll()
-      .where('id', '=', paymentId)
+      .innerJoin(
+        'payment_methods',
+        'payments.payment_method_id',
+        'payment_methods.id',
+      )
+      .select([
+        'payments.id',
+        'payments.amount',
+        'payments.currency',
+        'payments.status',
+        'payments.channel',
+        'payment_methods.type as method_type',
+        'payment_methods.config as method_config',
+        'payment_methods.channel_code as channel_code',
+      ])
+      .where('payments.id', '=', paymentId)
       .executeTakeFirst();
 
+    // Checking
     if (!payment)
       throw new NotFoundException(`Payment ${paymentId} not found.`);
     if (payment.channel !== 'ONLINE')
@@ -129,18 +90,130 @@ export class GatewayService {
     if (payment.status !== 'PENDING')
       throw new ConflictException(`Payment is already ${payment.status}.`);
 
-    const { config } = await this.getXenditConfig();
-    if (!config?.api_key)
-      throw new ConflictException('Gateway API Key is not configured.');
+    const { config: gatewayConfig } =
+      await this.configService.getXenditDbConfig();
 
-    // Construct Xendit Invoice Payload
+    // Resolve target channel code (DTO override > DB fallback)
+    const targetChannelCode =
+      dto.channel_code && dto.channel_code !== 'GENERIC'
+        ? dto.channel_code
+        : payment.channel_code !== 'GENERIC'
+          ? payment.channel_code
+          : null;
+
+    if (targetChannelCode) {
+      const paymentRequestClient = this.configService.getPaymentRequestClient();
+      let gatewayResponse;
+      try {
+        switch (payment.method_type) {
+          case 'WALLET': {
+            const resolvedChannel = resolveEWalletChannel(targetChannelCode);
+
+            if (targetChannelCode === 'OVO' && !dto.phone_number) {
+              throw new BadRequestException(
+                'phone_number is required for OVO payments.',
+              );
+            }
+
+            gatewayResponse = await paymentRequestClient.createPaymentRequest({
+              data: {
+                referenceId: payment.id,
+                currency: (payment.currency || 'IDR') as PaymentRequestCurrency,
+                amount: Number(payment.amount),
+                paymentMethod: {
+                  type: 'EWALLET',
+                  reusability: 'ONE_TIME_USE',
+                  ewallet: {
+                    channelCode: resolvedChannel,
+                    channelProperties: {
+                      ...(dto.success_redirect_url && {
+                        successReturnUrl: dto.success_redirect_url,
+                      }),
+                      ...(dto.failure_redirect_url && {
+                        failureReturnUrl: dto.failure_redirect_url,
+                      }),
+                      ...(dto.phone_number && {
+                        mobileNumber: dto.phone_number,
+                      }),
+                    },
+                  },
+                },
+              },
+            });
+            break;
+          }
+
+          case 'QRIS': {
+            gatewayResponse = await paymentRequestClient.createPaymentRequest({
+              data: {
+                referenceId: payment.id,
+                currency: (payment.currency || 'IDR') as PaymentRequestCurrency,
+                amount: Number(payment.amount),
+                paymentMethod: {
+                  type: 'QR_CODE',
+                  reusability: 'ONE_TIME_USE',
+                  qrCode: {
+                    channelCode: resolveQRChannel(targetChannelCode || 'NOBU'),
+                  },
+                },
+              },
+            });
+            break;
+          }
+
+          case 'VIRTUAL_ACCOUNT': {
+            gatewayResponse = await paymentRequestClient.createPaymentRequest({
+              data: {
+                referenceId: payment.id,
+                currency: (payment.currency || 'IDR') as PaymentRequestCurrency,
+                amount: Number(payment.amount),
+                paymentMethod: {
+                  type: 'VIRTUAL_ACCOUNT',
+                  reusability: 'ONE_TIME_USE',
+                  virtualAccount: {
+                    channelCode: resolveVAChannel(targetChannelCode),
+                    channelProperties: {
+                      customerName: 'POS Checkout',
+                    },
+                  },
+                },
+              },
+            });
+            break;
+          }
+
+          default:
+            throw new ConflictException(
+              `Direct checkout not supported for method type: ${payment.method_type}`,
+            );
+        }
+
+        return {
+          payment_id: payment.id,
+          status: payment.status,
+          method_type: payment.method_type,
+          channel_code: targetChannelCode,
+          gateway_data: gatewayResponse,
+        };
+      } catch (error) {
+        if (error instanceof BadRequestException) throw error;
+        throw new ConflictException(
+          `Xendit Payment Request Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+    }
+
+    if (!gatewayConfig?.api_key) {
+      throw new ConflictException('Gateway API Key is not configured.');
+    }
+
     const payload = {
-      external_id: payment.id, // Links Xendit directly to our internal ID
+      external_id: payment.id,
       amount: Number(payment.amount),
       currency: payment.currency,
       success_redirect_url: dto.success_redirect_url,
       failure_redirect_url: dto.failure_redirect_url,
-      payment_methods: config.enabled_channels || [
+      payment_methods: gatewayConfig.enabled_channels || [
         'CREDIT_CARD',
         'VIRTUAL_ACCOUNT',
         'QRIS',
@@ -149,12 +222,12 @@ export class GatewayService {
       ],
     };
 
-    // Call Xendit API
-    const response = await fetch('https://api.xendit.co/v2/invoices', {
+    // @TODO Pass this into receipt service
+    const response = await fetch('https://api.xendit.co/v3/invoices', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${Buffer.from(config.api_key + ':').toString('base64')}`,
+        Authorization: `Basic ${Buffer.from(gatewayConfig.api_key + ':').toString('base64')}`,
       },
       body: JSON.stringify(payload),
     });
@@ -178,9 +251,8 @@ export class GatewayService {
 
   // [x] GET /api/payments/:id/checkout-session
   async getCheckoutSession(paymentId: string) {
-    const { config } = await this.getXenditConfig();
+    const { config } = await this.configService.getXenditDbConfig();
 
-    // Fetch the invoice state directly from Xendit using external_id
     const response = await fetch(
       `https://api.xendit.co/v2/invoices?external_id=${paymentId}`,
       {
@@ -197,26 +269,21 @@ export class GatewayService {
       );
     }
 
-    // Return the most recent invoice for this external_id
     return invoices[0];
   }
 
   // [x] POST /api/payments/:id/retry
   async retryCheckoutSession(paymentId: string, dto: CreateCheckoutSessionDto) {
-    // 1. Expire the old invoice in Xendit if it exists
-    await this.cancelCheckoutSession(paymentId, true); // true = soft cancel (don't void the DB record)
-
-    // 2. Generate a fresh session link
+    await this.cancelCheckoutSession(paymentId, true);
     return this.createCheckoutSession(paymentId, dto);
   }
 
   // [x] POST /api/payments/:id/cancel-checkout-session
   async cancelCheckoutSession(paymentId: string, isRetry = false) {
     const session = await this.getCheckoutSession(paymentId);
-    const { config } = await this.getXenditConfig();
+    const { config } = await this.configService.getXenditDbConfig();
 
     if (session.status === 'PENDING') {
-      // Force expire the invoice on Xendit
       await fetch(`https://api.xendit.co/invoices/${session.id}/expire!`, {
         method: 'POST',
         headers: {
@@ -227,7 +294,6 @@ export class GatewayService {
 
     if (isRetry) return { success: true, message: 'Old session expired.' };
 
-    // If completely canceling, update our internal state and ledger
     return this.db.transaction().execute(async (trx) => {
       const payment = await trx
         .selectFrom('payments')
@@ -254,28 +320,5 @@ export class GatewayService {
 
       return updated;
     });
-  }
-
-  // [x] GET /api/gateway-config
-  async getGatewayConfig() {
-    const method = await this.getXenditConfig();
-    return {
-      provider: 'Xendit',
-      config: method.config,
-    };
-  }
-
-  // [x] PATCH /api/gateway-config
-  async updateGatewayConfig(dto: UpdateGatewayConfigDto) {
-    const method = await this.getXenditConfig();
-    const updatedConfig = { ...method.config, ...dto };
-
-    await this.db
-      .updateTable('payment_methods')
-      .set({ config: JSON.stringify(updatedConfig) })
-      .where('id', '=', method.id)
-      .execute();
-
-    return { provider: 'Xendit', config: updatedConfig };
   }
 }

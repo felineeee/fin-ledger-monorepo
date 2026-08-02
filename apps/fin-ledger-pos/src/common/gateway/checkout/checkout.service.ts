@@ -15,12 +15,13 @@ import {
 import { VirtualAccount } from 'xendit-node/payment_request/models/VirtualAccount.js';
 import { EWallet } from 'xendit-node/payment_request/models/EWallet.js';
 import { VirtualAccountChannelCode } from 'xendit-node/payment_request/models/VirtualAccountChannelCode.js';
+import { GatewayConfigService } from '../gateway-config/gateway-config.service.js';
 
 @Injectable()
 export class CheckoutService {
   constructor(
     @Inject('DB_INSTANCE') private readonly db: Kysely<DB>,
-    private readonly gateway: GatewayService,
+    private readonly gatewayConfigService: GatewayConfigService,
   ) {}
 
   // [x] POST /api/payments/:id/create-checkout-session
@@ -45,7 +46,7 @@ export class CheckoutService {
     if (payment.status !== 'PENDING')
       throw new BadRequestException(`Payment is already ${payment.status}`);
 
-    const xendit = this.gateway.getClient();
+    const xendit = this.gatewayConfigService.getClient();
     let gatewayResponse;
 
     try {

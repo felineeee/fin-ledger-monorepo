@@ -1,4 +1,3 @@
-// src/payments/webhooks.service.ts
 import {
   Injectable,
   UnauthorizedException,
@@ -8,67 +7,70 @@ import {
 import { Kysely, sql } from 'kysely';
 import { DB } from '../../../db/types.js';
 import { KYSELY_DB } from '@fin-ledger/databases';
-import { FeesService } from '../../finance/fees/fees.service.js';
-
+import { FeesService } from '../../finance/fees/fees.service';
+import { GatewayConfigService } from '../../gateway/gateway-config/gateway-config.service';
+import { PaymentCallback } from 'xendit-node/payment_request/models';
+import { validate as isUuid } from 'uuid';
 @Injectable()
 export class WebhooksService {
   constructor(
     @Inject(KYSELY_DB) private readonly db: Kysely<DB>,
     private readonly feesService: FeesService,
+    private readonly configService: GatewayConfigService,
   ) {}
 
-  // Helper to fetch the Xendit Webhook Secret from config
-  private async getWebhookSecret(): Promise<string | null> {
-    const method = await this.db
-      .selectFrom('payment_methods')
-      .selectAll()
-      .where('name', '=', 'Xendit Gateway')
-      .executeTakeFirst();
+  /**
+   * Extract internal payment UUID from strongly-typed PaymentCallback or legacy fallback
+   */
+  private extractPaymentId(payload: PaymentCallback): string | null {
+    const raw = payload as any;
 
-    if (!method) return null;
-    const config =
-      typeof method.config === 'string'
-        ? JSON.parse(method.config)
-        : method.config;
+    // Candidate extraction across Xendit formats
+    const candidates = [
+      payload.data?.referenceId, // Payment Request API (v2)
+      raw.data?.reference_id, // Unified Callbacks
+      raw.reference_id, // Legacy Callback
+      raw.external_id, // Invoices / Fixed VAs
+      raw.data?.qr_code?.external_id, // QRIS
+    ];
 
-    return config?.webhook_secret || null;
+    for (const candidate of candidates) {
+      // ONLY return if candidate exists and is a valid UUID!
+      if (candidate && typeof candidate === 'string' && isUuid(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null; // Return null if no valid UUID is found (will log safely without crashing SQL)
   }
 
-  // Helper to extract our internal payment UUID across different Xendit webhook shapes
-  private extractPaymentId(payload: any): string | null {
-    // 1. Unified Payment Request API / E-Wallets / QRIS (v2+)
-    if (payload.data?.reference_id) return payload.data.reference_id;
-    if (payload.data?.qr_code?.external_id)
-      return payload.data.qr_code.external_id;
-
-    // 2. Legacy Virtual Accounts & Direct Invoices
-    if (payload.external_id) return payload.external_id;
-    if (payload.reference_id) return payload.reference_id;
-
-    return null;
-  }
-
-  // Helper to check if event denotes payment success
-  private isSuccessEvent(eventType: string, payload: any): boolean {
-    const status = payload.status || payload.data?.status;
+  /**
+   * Helper to check if event denotes payment success
+   */
+  private isSuccessEvent(eventType: string, payload: PaymentCallback): boolean {
+    const status = payload.data?.status || (payload as any).status;
 
     return (
-      status === 'PAID' ||
       status === 'SUCCEEDED' ||
+      status === 'PAID' ||
+      eventType === 'payment_request.succeeded' ||
       eventType === 'virtual_account.paid' ||
       eventType === 'qr.payment' ||
-      eventType === 'payment_request.succeeded'
+      eventType === 'invoice.paid'
     );
   }
 
-  // Helper to check if event denotes failure/expiration
-  private isFailedEvent(eventType: string, payload: any): boolean {
-    const status = payload.status || payload.data?.status;
+  /**
+   * Helper to check if event denotes failure or expiration
+   */
+  private isFailedEvent(eventType: string, payload: PaymentCallback): boolean {
+    const status = payload.data?.status || (payload as any).status;
 
     return (
-      status === 'EXPIRED' ||
       status === 'FAILED' ||
-      eventType === 'payment_request.failed'
+      status === 'EXPIRED' ||
+      eventType === 'payment_request.failed' ||
+      eventType === 'invoice.expired'
     );
   }
 
@@ -76,15 +78,16 @@ export class WebhooksService {
   async handleGatewayWebhook(
     callbackToken: string,
     eventType: string,
-    payload: any,
+    payload: PaymentCallback,
   ) {
     // 1. Verify Xendit Token
-    const expectedToken = await this.getWebhookSecret();
+    const expectedToken = this.configService.getWebhookToken();
     if (expectedToken && callbackToken !== expectedToken) {
       throw new UnauthorizedException('Invalid callback token');
     }
 
-    const eventId = payload.id || payload.event_id || `ev_${Date.now()}`;
+    const rawPayload = payload as any;
+    const eventId = rawPayload.id || rawPayload.event_id || `ev_${Date.now()}`;
     const paymentId = this.extractPaymentId(payload);
 
     return this.db.transaction().execute(async (trx) => {
@@ -99,13 +102,13 @@ export class WebhooksService {
         return { success: true, message: 'Already processed' };
       }
 
-      // 3. Log Raw Webhook
+      // 3. Log Raw Webhook Event
       await trx
         .insertInto('webhook_events')
         .values({
           event_id: eventId,
           payment_id: paymentId || null,
-          event_type: eventType || payload.status || 'UNKNOWN',
+          event_type: eventType || payload.event || 'UNKNOWN',
           payload: JSON.stringify(payload),
         })
         .execute();
@@ -117,7 +120,7 @@ export class WebhooksService {
         };
       }
 
-      // 4. Lock & Select Payment Row to avoid race conditions
+      // 4. Lock & Select Payment Row to prevent race conditions
       const payment = await trx
         .selectFrom('payments')
         .selectAll()
@@ -137,14 +140,17 @@ export class WebhooksService {
         this.isSuccessEvent(eventType, payload) &&
         payment.status === 'PENDING'
       ) {
-        // Update Payment Status
+        // A. Update Payment Status to CAPTURED
         await trx
           .updateTable('payments')
           .set({ status: 'CAPTURED', updated_at: sql`NOW()` })
           .where('id', '=', payment.id)
           .execute();
 
-        // Write Realization to Ledger
+        // B. Calculate and Snapshot Fees
+        await this.feesService.calculateAndSnapshotFees(payment.id, trx);
+
+        // C. Record entry in Immutable Payment Ledger
         await trx
           .insertInto('payment_ledger')
           .values({
@@ -156,7 +162,7 @@ export class WebhooksService {
               source: 'webhook',
               event_id: eventId,
               channel:
-                payload.payment_method || payload.data?.payment_method?.type,
+                payload.data?.paymentMethod?.type || rawPayload.payment_method,
             }),
           })
           .execute();
@@ -201,65 +207,5 @@ export class WebhooksService {
     }
 
     return event;
-  }
-
-  async processGatewayWebhook(
-    eventId: string,
-    eventType: string,
-    payload: any,
-  ) {
-    // 1. Audit Log (omitted for brevity, same as before) ...
-
-    const paymentId = this.extractPaymentId(payload);
-    if (!paymentId) return { status: 'ignored' };
-
-    // 3. Update the Ledger & Payment State atomically
-    await this.db.transaction().execute(async (trx) => {
-      const payment = await trx
-        .selectFrom('payments')
-        .select(['id', 'status', 'amount'])
-        .where('id', '=', paymentId)
-        .forUpdate()
-        .executeTakeFirst();
-
-      if (!payment || payment.status === 'CAPTURED') return;
-
-      const isSuccessEvent =
-        eventType === 'virtual_account.paid' ||
-        eventType === 'qr.payment' ||
-        (eventType.includes('ewallet') && payload.data?.status === 'SUCCEEDED');
-
-      if (isSuccessEvent) {
-        // A. Update payment status
-        await trx
-          .updateTable('payments')
-          .set({ status: 'CAPTURED', updated_at: new Date().toISOString() })
-          .where('id', '=', payment.id)
-          .execute();
-
-        // B. ---> TRIGGER THE IMMUTABLE FEE SNAPSHOT <---
-        await this.feesService.calculateAndSnapshotFees(payment.id, trx);
-
-        // C. Write to immutable ledger
-        await trx
-          .insertInto('payment_ledger')
-          .values({
-            payment_id: payment.id,
-            entry_type: 'CAPTURED',
-            amount: payment.amount,
-            currency: 'IDR',
-            metadata: JSON.stringify({ source: 'webhook', event_id: eventId }),
-          })
-          .execute();
-
-        await trx
-          .updateTable('webhook_events')
-          .set({ payment_id: payment.id })
-          .where('event_id', '=', eventId)
-          .execute();
-      }
-    });
-
-    return { status: 'processed' };
   }
 }

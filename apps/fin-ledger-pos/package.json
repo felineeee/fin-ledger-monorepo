@@ -38,6 +38,7 @@
     "dotenv": "^16.3.1",
     "kysely": "0.29.4",
     "pg": "^8.11.0",
+    "uuid": "^14.0.1",
     "xendit-node": "^7.0.0"
   },
   "devDependencies": {
@@ -54,6 +55,7 @@
     "@types/pg": "^8.11.0",
     "@types/redlock": "^4.0.8",
     "@types/supertest": "^7.2.1",
+    "@types/uuid": "^11.0.0",
     "babel-jest": "^30.4.1",
     "jest": "^30.4.2",
     "kysely-codegen": "^0.11.0",

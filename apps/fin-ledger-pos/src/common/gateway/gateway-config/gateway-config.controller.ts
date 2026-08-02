@@ -7,21 +7,21 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { GatewayService } from './gateway.service.js';
-import { UpdateGatewayConfigDto } from './dto/gateway-config.dto.js';
+import { UpdateGatewayConfigDto } from '../dto/gateway-config.dto.js';
+import { GatewayConfigService } from './gateway-config.service.js';
 
 @ApiTags('gateway-config')
 @ApiBearerAuth()
 @Controller('api/gateway-config')
-export class GatewayController {
-  constructor(private readonly gatewayService: GatewayService) {}
+export class GatewayConfigController {
+  constructor(private readonly gatewayConfigService: GatewayConfigService) {}
 
   @Get()
   @ApiOperation({
     summary: 'Get active gateway providers and public keys (SuperAdmin)',
   })
   async getConfig() {
-    return this.gatewayService.getConfig();
+    return this.gatewayConfigService.getGatewayConfig();
   }
 
   @Patch()
@@ -30,6 +30,6 @@ export class GatewayController {
     summary: 'Configure/enable gateway provider settings (SuperAdmin)',
   })
   async updateConfig(@Body() dto: UpdateGatewayConfigDto) {
-    return this.gatewayService.updateConfig(dto);
+    return this.gatewayConfigService.updateGatewayConfig(dto);
   }
 }

@@ -1,13 +1,5 @@
-// src/payments/dto/gateway.dto.ts
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsArray,
-  IsUrl,
-  IsObject,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsUrl, IsString, IsPhoneNumber } from 'class-validator';
 
 export class CreateCheckoutSessionDto {
   @ApiPropertyOptional({
@@ -25,24 +17,22 @@ export class CreateCheckoutSessionDto {
   @IsOptional()
   @IsUrl()
   failure_redirect_url?: string;
+
+  @ApiPropertyOptional({
+    example: 'SHOPEEPAY',
+    description:
+      'Channel code for direct API checkouts (e.g., SHOPEEPAY, DANA, BCA, BNI, NOBU, QRIS). If omitted, falls back to hosted invoice.',
+  })
+  @IsOptional()
+  @IsString()
+  channel_code?: string;
+
+  @ApiPropertyOptional({
+    example: '+6281234567890',
+    description:
+      'Customer phone number required by certain E-Wallet channels (e.g., OVO)',
+  })
+  @IsOptional()
+  @IsPhoneNumber('ID')
+  phone_number?: string;
 }
-
-// export class UpdateGatewayConfigDto {
-//   @ApiProperty({ example: 'xnd_development_O4...', description: 'Xendit Secret API Key' })
-//   @IsOptional()
-//   @IsString()
-//   api_key?: string;
-
-//   @ApiProperty({ example: 'xnd_webhook_123...', description: 'Xendit Webhook Verification Token' })
-//   @IsOptional()
-//   @IsString()
-//   webhook_secret?: string;
-
-//   @ApiPropertyOptional({
-//     example: ['CREDIT_CARD', 'VIRTUAL_ACCOUNT', 'QRIS', 'EWALLET', 'PAYLATER'],
-//     description: 'Enabled payment channels for the hosted checkout'
-//   })
-//   @IsOptional()
-//   @IsArray()
-//   enabled_channels?: string[];
-// }

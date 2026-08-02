@@ -76,22 +76,4 @@ export class GatewayController {
   async cancelCheckoutSession(@Param('id', ParseUUIDPipe) id: string) {
     return this.gatewayService.cancelCheckoutSession(id);
   }
-
-  @Get('gateway-config')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Get active gateway providers and public keys (SuperAdmin)',
-  })
-  async getGatewayConfig() {
-    return this.gatewayService.getGatewayConfig();
-  }
-
-  @Patch('gateway-config')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Configure/enable gateway provider settings (SuperAdmin)',
-  })
-  async updateGatewayConfig(@Body() dto: UpdateGatewayConfigDto) {
-    return this.gatewayService.updateGatewayConfig(dto);
-  }
 }

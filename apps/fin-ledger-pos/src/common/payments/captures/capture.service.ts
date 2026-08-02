@@ -63,6 +63,9 @@ export class CaptureService {
   }
 
   // [x] POST /api/payments/:id/capture-card-present
+  /*
+   * This is only a mock, since this was remnant before the gateway code arrive
+   */
   async captureCardPresent(id: string, dto: CaptureCardPresentDto) {
     return this.db.transaction().execute(async (trx) => {
       const payment = await trx

@@ -15,7 +15,7 @@
       }
     ]
   },
-  "transformIgnorePatterns": ["/node_modules/(?!(\\.pnpm|kysely)/)"],
+  "transformIgnorePatterns": ["/node_modules/(?!(\\.pnpm|kysely|uuid)/)"],
   "moduleNameMapper": {
     "^@fin-ledger/(.*)/src/(.*)\\.js$": "<rootDir>/../../../../packages/$1/src/$2.ts",
     "^@fin-ledger/(.*)/src/(.*)$": "<rootDir>/../../../../packages/$1/src/$2",

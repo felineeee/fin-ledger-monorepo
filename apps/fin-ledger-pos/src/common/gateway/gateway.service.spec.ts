@@ -1,18 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ConflictException } from '@nestjs/common';
-import { GatewayService } from './gateway.service.js';
+import { GatewayService } from './gateway.service';
+import { GatewayConfigService } from './gateway-config/gateway-config.service';
 import { KYSELY_DB } from '@fin-ledger/databases';
-import { Xendit } from 'xendit-node';
-
-// Mock the Xendit SDK constructor so it doesn't crash during initialization
-jest.mock('xendit-node', () => {
-  return {
-    Xendit: jest.fn().mockImplementation(() => ({})),
-  };
-});
 
 describe('GatewayService', () => {
   let service: GatewayService;
+  let configService: GatewayConfigService;
 
   // 1. Kysely DB Mock
   const mockDbQueryBuilder: any = {
@@ -37,8 +31,23 @@ describe('GatewayService', () => {
 
   const mockDb = mockDbQueryBuilder;
 
-  // 2. Global Fetch Mock
+  // 2. GatewayConfigService Mock
+  const mockGatewayConfigService = {
+    getXenditDbConfig: jest.fn(),
+    getClient: jest.fn(),
+    getWebhookToken: jest.fn(),
+  };
+
+  // 3. Global Fetch Mock
   const originalFetch = global.fetch;
+
+  const mockDbConfig = {
+    id: 'method-1',
+    config: {
+      api_key: 'xnd_development_123',
+      enabled_channels: ['CREDIT_CARD'],
+    },
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -46,30 +55,22 @@ describe('GatewayService', () => {
     // Setup fetch mock
     global.fetch = jest.fn();
 
-    // Temporarily set env vars for the constructor
-    process.env.XENDIT_SECRET_KEY = 'test_secret_key';
-    process.env.XENDIT_WEBHOOK_TOKEN = 'test_webhook_token';
-
     const module: TestingModule = await Test.createTestingModule({
-      providers: [GatewayService, { provide: KYSELY_DB, useValue: mockDb }],
+      providers: [
+        GatewayService,
+        { provide: KYSELY_DB, useValue: mockDb },
+        { provide: GatewayConfigService, useValue: mockGatewayConfigService },
+      ],
     }).compile();
 
     service = module.get<GatewayService>(GatewayService);
+    configService = module.get<GatewayConfigService>(GatewayConfigService);
   });
 
   afterAll(() => {
     // Restore fetch after tests finish
     global.fetch = originalFetch;
   });
-
-  const mockGatewayConfig = {
-    id: 'method-1',
-    name: 'Xendit Gateway',
-    config: JSON.stringify({
-      api_key: 'xnd_development_123',
-      enabled_channels: ['CREDIT_CARD'],
-    }),
-  };
 
   describe('createCheckoutSession', () => {
     it('should call Xendit API via fetch and return checkout details', async () => {
@@ -88,10 +89,11 @@ describe('GatewayService', () => {
         status: 'PENDING',
       };
 
-      // Mock DB fetches
-      mockDb.executeTakeFirst
-        .mockResolvedValueOnce(existingPayment) // First call: get payment
-        .mockResolvedValueOnce(mockGatewayConfig); // Second call: get config
+      // Mock DB & Config calls
+      mockDb.executeTakeFirst.mockResolvedValueOnce(existingPayment);
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValueOnce(
+        mockDbConfig,
+      );
 
       // Mock successful fetch response
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -136,14 +138,15 @@ describe('GatewayService', () => {
     });
 
     it('should throw ConflictException if Xendit fetch fails', async () => {
-      mockDb.executeTakeFirst
-        .mockResolvedValueOnce({
-          id: 'pay-1',
-          channel: 'ONLINE',
-          status: 'PENDING',
-          amount: '1000',
-        })
-        .mockResolvedValueOnce(mockGatewayConfig);
+      mockDb.executeTakeFirst.mockResolvedValueOnce({
+        id: 'pay-1',
+        channel: 'ONLINE',
+        status: 'PENDING',
+        amount: '1000',
+      });
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValueOnce(
+        mockDbConfig,
+      );
 
       // Mock a failed fetch response
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -159,7 +162,9 @@ describe('GatewayService', () => {
 
   describe('getCheckoutSession', () => {
     it('should fetch the invoice from Xendit', async () => {
-      mockDb.executeTakeFirst.mockResolvedValueOnce(mockGatewayConfig);
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValueOnce(
+        mockDbConfig,
+      );
 
       const mockInvoices = [{ id: 'inv_123', status: 'PAID' }];
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -176,10 +181,12 @@ describe('GatewayService', () => {
     });
 
     it('should throw NotFoundException if no invoice is found', async () => {
-      mockDb.executeTakeFirst.mockResolvedValueOnce(mockGatewayConfig);
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValueOnce(
+        mockDbConfig,
+      );
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
-        json: async () => [], // Xendit returns empty array if not found
+        json: async () => [],
       });
 
       await expect(service.getCheckoutSession('pay-1')).rejects.toThrow(
@@ -190,21 +197,22 @@ describe('GatewayService', () => {
 
   describe('cancelCheckoutSession', () => {
     it('should completely cancel the session and write to ledger if isRetry is false', async () => {
-      // 1. Mock getXenditConfig (called inside getCheckoutSession & cancelCheckoutSession)
-      mockDb.executeTakeFirst.mockResolvedValue(mockGatewayConfig);
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValue(
+        mockDbConfig,
+      );
 
-      // 2. Mock getCheckoutSession fetch call
+      // 1. Mock getCheckoutSession fetch call & expire call
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
           json: async () => [{ id: 'inv_123', status: 'PENDING' }],
-        }) // For getCheckoutSession
-        .mockResolvedValueOnce({ ok: true }); // For expire! call
+        })
+        .mockResolvedValueOnce({ ok: true });
 
-      // 3. Mock DB Transaction for Voiding
+      // 2. Mock DB Transaction for Voiding
       const existingPayment = { id: 'pay-1', amount: '50000', currency: 'IDR' };
       mockDb.executeTakeFirstOrThrow
-        .mockResolvedValueOnce(existingPayment) // Select payment
-        .mockResolvedValueOnce({ ...existingPayment, status: 'VOIDED' }); // Update payment
+        .mockResolvedValueOnce(existingPayment)
+        .mockResolvedValueOnce({ ...existingPayment, status: 'VOIDED' });
 
       await service.cancelCheckoutSession('pay-1', false);
 
@@ -226,7 +234,9 @@ describe('GatewayService', () => {
     });
 
     it('should only expire in Xendit and return early if isRetry is true', async () => {
-      mockDb.executeTakeFirst.mockResolvedValue(mockGatewayConfig);
+      mockGatewayConfigService.getXenditDbConfig.mockResolvedValue(
+        mockDbConfig,
+      );
 
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
@@ -243,23 +253,6 @@ describe('GatewayService', () => {
 
       // DB Transaction should NOT be called
       expect(mockDb.transaction().execute).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('updateGatewayConfig', () => {
-    it('should stringify the merged config and save to the database', async () => {
-      mockDb.executeTakeFirst.mockResolvedValueOnce(mockGatewayConfig);
-
-      await service.updateGatewayConfig({ is_enabled: false } as any);
-
-      expect(mockDb.updateTable).toHaveBeenCalledWith('payment_methods');
-      expect(mockDb.set).toHaveBeenCalledWith({
-        config: JSON.stringify({
-          api_key: 'xnd_development_123',
-          enabled_channels: ['CREDIT_CARD'],
-          is_enabled: false,
-        }),
-      });
     });
   });
 });

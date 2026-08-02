@@ -24,6 +24,8 @@ export type Numeric = ColumnType<string, number | string, number | string>;
 
 export type PaymentChannel = "IN_PERSON" | "ONLINE";
 
+export type PaymentChannelCode = "BCA" | "BNI" | "BRI" | "CARD" | "CIMB" | "DANA" | "GENERIC" | "GOPAY" | "LINKAJA" | "MANDIRI" | "NOBU" | "OVO" | "PERMATA" | "QRIS" | "SHOPEEPAY";
+
 export type PaymentMethodType = "CARD" | "CASH" | "QRIS" | "VIRTUAL_ACCOUNT" | "WALLET";
 
 export type PaymentStatus = "AUTHORIZED" | "CAPTURED" | "FAILED" | "PARTIALLY_REFUNDED" | "PENDING" | "REFUNDED" | "VOIDED";
@@ -95,6 +97,7 @@ export interface PaymentLedger {
 }
 
 export interface PaymentMethods {
+  channel_code: Generated<PaymentChannelCode>;
   config: Generated<Json | null>;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
