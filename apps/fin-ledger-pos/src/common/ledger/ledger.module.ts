@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { LedgerService } from './ledger.service.js';
-import { LedgerController } from './ledger.controller.js';
-import { LedgerRepository } from './ledger.repository.js';
+import { LedgerService } from './ledger.service';
+import { LedgerController } from './ledger.controller';
+import { LedgerRepository } from './ledger.repository';
 import { DatabaseModule } from '@fin-ledger/databases';
 
 @Module({
