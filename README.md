@@ -32,9 +32,9 @@ The service integrates with Xendit to process multiple payment methods, includin
 The project is built around modern ledger and financial system design principles, including:
 
 - [x] ACID-compliant atomic transaction
-- [-] Tamper-evident hash chains (need to connect)
-- [-] Idempotency protection for payment requests (need to connect 
-- [-] PII scrubbing for sensitive data (need to connect
+- [ ] Tamper-evident hash chains (need integration)
+- [ ] Idempotency protection for payment requests (need integration) 
+- [ ] PII scrubbing for sensitive data (need integration)
 - [x] Global error handling
 - [x] Transaction reconciliation
 - [x] Audit logging
