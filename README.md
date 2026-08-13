@@ -6,27 +6,41 @@ Fintech Ledger is a standalone backend service responsible for managing the fina
 
 The service integrates with Xendit to process multiple payment methods, including:
 
-- Cash
-- E-wallets
-- Credit cards
-- Debit cards
-- QRIS
+### Xendit Supported Channels Checklist
 
-Rather than serving as a payment gateway, Fintech Ledger acts as the system of record for financial transactions. Every transaction is recorded in an immutable ledger, enabling accurate balance tracking, reconciliation, and auditing.
+| Category | Channel / Provider | Description | Status |
+| --- | --- | --- | --- |
+| **Cash (Retail Outlets)** |
+|  | In-Store | Over-the-counter OTC payment | [x] |
+| **E-Wallets** | **OVO** |  | [x] |
+|  | **OVO** |  | [-] |
+|  | **DANA** |  | [-] |
+|  | **ShopeePay** |  | [-] |
+|  | **LinkAja** |  | [-] |
+|  | **AstraPay** |  | [-] |
+|  | **Jenius Pay** |  | [-] |
+|  | **Sakuku** |  | [-] |
+| **Credit Cards** | **Visa** |  | [-] |
+|  | **Mastercard** |  | [-] |
+| **Debit Cards** | **Online Debit** |  | [-] |
+|  | **Direct Debit (BCA OneKlik)** |  | [-] |
+|  | **Direct Debit (BRI)** |  | [-] |
+| **QRIS** | **Dynamic QRIS** | Auto-generated per transaction | [-] |
+|  | **Static QRIS** | Fixed reusable QR code | [-] |
 
 ## Core Principles
 
 The project is built around modern ledger and financial system design principles, including:
 
-- ACID-compliant atomic transactions
-- Tamper-evident hash chains
-- Idempotency protection for payment requests
-- PII scrubbing for sensitive data
-- Global error handling
-- Transaction reconciliation
-- Audit logging
-- Secure webhook verification
-- Double-entry bookkeeping
+- [x] ACID-compliant atomic transaction
+- [-] Tamper-evident hash chains (need to connect)
+- [-] Idempotency protection for payment requests (need to connect 
+- [-] PII scrubbing for sensitive data (need to connect
+- [x] Global error handling
+- [x] Transaction reconciliation
+- [x] Audit logging
+- [x] Secure webhook verification
+- [x] Double-entry bookkeeping
 
 ## Tech Stack
 
