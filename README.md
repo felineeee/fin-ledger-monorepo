@@ -13,7 +13,6 @@ The service integrates with Xendit to process multiple payment methods, includin
 | **Cash (Retail Outlets)** |
 |  | In-Store | Over-the-counter OTC payment | [x] |
 | **E-Wallets** | **OVO** |  | [x] |
-|  | **OVO** |  | [-] |
 |  | **DANA** |  | [-] |
 |  | **ShopeePay** |  | [-] |
 |  | **LinkAja** |  | [-] |
