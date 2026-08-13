@@ -4,6 +4,8 @@
 
 Fintech Ledger is a standalone backend service responsible for managing the financial ledger of my POS ecosystem. It is designed as one of several microservices within a larger monorepo architecture, with a focus on reliability, consistency, and auditability.
 
+This application is an multichannel payment engine and financial ledger that unifies in-person POS hardware, online checkout gateways, shift management, and automated bookkeeping into a single API stack. It acts as a complete financial control center—orchestrating multi-tender captures, managing register cash drops, handling post-processing like tips and chargebacks, and automatically writing every transaction to an immutable double-entry ledger for instant reconciliation, fee calculation, and multi-location audit reporting.
+
 The service integrates with Xendit to process multiple payment methods, including:
 
 ### Xendit Supported Channels Checklist
@@ -13,19 +15,19 @@ The service integrates with Xendit to process multiple payment methods, includin
 | **Cash (Retail Outlets)** |
 |  | In-Store | Over-the-counter OTC payment | [x] |
 | **E-Wallets** | **OVO** |  | [x] |
-|  | **DANA** |  | [-] |
-|  | **ShopeePay** |  | [-] |
-|  | **LinkAja** |  | [-] |
-|  | **AstraPay** |  | [-] |
-|  | **Jenius Pay** |  | [-] |
-|  | **Sakuku** |  | [-] |
-| **Credit Cards** | **Visa** |  | [-] |
-|  | **Mastercard** |  | [-] |
-| **Debit Cards** | **Online Debit** |  | [-] |
-|  | **Direct Debit (BCA OneKlik)** |  | [-] |
-|  | **Direct Debit (BRI)** |  | [-] |
-| **QRIS** | **Dynamic QRIS** | Auto-generated per transaction | [-] |
-|  | **Static QRIS** | Fixed reusable QR code | [-] |
+|  | **DANA** |  | [ ] |
+|  | **ShopeePay** |  | [ ] |
+|  | **LinkAja** |  | [ ] |
+|  | **AstraPay** |  | [ ] |
+|  | **Jenius Pay** |  | [ ] |
+|  | **Sakuku** |  | [ ] |
+| **Credit Cards** | **Visa** |  | [ ] |
+|  | **Mastercard** |  | [ ] |
+| **Debit Cards** | **Online Debit** |  | [ ] |
+|  | **Direct Debit (BCA OneKlik)** |  | [ ] |
+|  | **Direct Debit (BRI)** |  | [ ] |
+| **QRIS** | **Dynamic QRIS** | Auto-generated per transaction | [ ] |
+|  | **Static QRIS** | Fixed reusable QR code | [ ] |
 
 ## Core Principles
 
